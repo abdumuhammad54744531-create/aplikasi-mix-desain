@@ -1,0 +1,5 @@
+@extends('layouts.app') @section('title',$aggregate==='fine'?'Pengujian Pasir':'Pengujian Kerikil') @section('subtitle','Pilih jenis pemeriksaan laboratorium') @section('content')
+<a href="{{route('material-tests.index')}}" class="small text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Semua material</a>
+<h3 class="fw-bold mt-2">Paket Pengujian {{$aggregate==='fine'?'Agregat Halus / Pasir':'Agregat Kasar / Kerikil'}}</h3><p class="text-secondary">Masukkan data penimbangan tiap observasi; hasil dan rata-rata dihitung otomatis oleh sistem.</p>
+<div class="row g-3 mt-1">@foreach($tests as $slug=>$test)<div class="col-md-6 col-xl-4"><a class="card p-4 h-100 text-decoration-none text-dark" href="{{route('aggregate-tests.create',[$aggregate,$slug])}}"><div class="metric-icon mb-3"><i class="bi bi-{{$test['icon']}}"></i></div><h5 class="fw-bold">{{$loop->iteration}}. {{$test['label']}}</h5><div class="small text-secondary">{{$test['standard']}}</div><div class="text-success small mt-3">Masukkan observasi <i class="bi bi-arrow-right ms-1"></i></div></a></div>@endforeach</div>
+@endsection

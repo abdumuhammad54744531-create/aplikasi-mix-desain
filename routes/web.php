@@ -1,0 +1,66 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\{AccountController,ArchiveController,AuthController,DashboardController,LaboratoryWorkRequestController,ProjectController,MaterialSourceController,MixDesignController,ReferenceController,MaterialTestController,AggregateTestController,MaterialResultController,WorkflowController,MixDesign2012Controller,ReportSettingController,TestDocumentationController};
+Route::redirect('/','/dashboard');
+Route::get('/verify/{code}',[WorkflowController::class,'publicVerification'])->name('public.verify');
+Route::get('/verify/{code}/signatory/{signature}',[WorkflowController::class,'publicSignerVerification'])->name('public.signer');
+Route::get('/verify/approval/{token}',[WorkflowController::class,'publicApprovalVerification'])->name('public.approval');
+Route::get('/verify/{code}/report',[WorkflowController::class,'publicReport'])->name('public.report');
+Route::get('/verify/{code}/download',[WorkflowController::class,'publicDownload'])->name('public.download');
+Route::get('/layanan-pengujian-laboratorium',[LaboratoryWorkRequestController::class,'brochure'])->name('lab-services.brochure');
+Route::redirect('/usulan-laboratorium','/permohonan-pengujian');
+Route::middleware('guest')->group(function(){
+    Route::get('/login',[AuthController::class,'show'])->name('login');
+    Route::post('/login',[AuthController::class,'login']);
+    Route::get('/daftar-pemohon',[AuthController::class,'registerForm'])->name('applicant.register');
+    Route::post('/daftar-pemohon',[AuthController::class,'register'])->name('applicant.register.store');
+});
+Route::post('/logout',[AuthController::class,'logout'])->middleware('auth')->name('logout');
+Route::middleware('auth')->group(function(){
+    Route::get('/dashboard',[DashboardController::class,'index'])->name('dashboard');
+    Route::get('/permohonan-pengujian',[LaboratoryWorkRequestController::class,'index'])->name('lab-requests.index');
+    Route::post('/permohonan-pengujian',[LaboratoryWorkRequestController::class,'store'])->name('lab-requests.store');
+    Route::patch('/permohonan-pengujian/{labRequest}/status',[LaboratoryWorkRequestController::class,'updateStatus'])->middleware(['lab.staff','edit.access'])->name('lab-requests.status');
+    Route::post('/permohonan-pengujian/{labRequest}/setujui-proyek',[LaboratoryWorkRequestController::class,'approveAndCreateProject'])->middleware(['lab.staff','edit.access'])->name('lab-requests.approve-project');
+    Route::patch('/account/password',[AccountController::class,'password'])->name('account.password');
+    Route::middleware('lab.staff')->group(function(){
+    Route::resource('projects',ProjectController::class)->only(['index','store','update','destroy'])->middlewareFor(['store','update','destroy'],'edit.access');
+    Route::resource('materials',MaterialSourceController::class)->only(['index','store','update','destroy'])->middlewareFor(['store','update','destroy'],'edit.access');
+    Route::get('/material-tests',[MaterialTestController::class,'index'])->name('material-tests.index');
+    Route::get('/material-tests/{type}',[MaterialTestController::class,'create'])->name('material-tests.create');
+    Route::post('/material-tests/{type}',[MaterialTestController::class,'store'])->middleware('edit.access')->name('material-tests.store');
+    Route::get('/aggregate-tests/{aggregate}',[AggregateTestController::class,'menu'])->name('aggregate-tests.menu');
+    Route::get('/aggregate-worksheet/{aggregate}',[AggregateTestController::class,'worksheet'])->name('aggregate-tests.worksheet');
+    Route::post('/aggregate-worksheet/{aggregate}',[AggregateTestController::class,'storeWorksheet'])->middleware('edit.access')->name('aggregate-tests.worksheet.store');
+    Route::get('/aggregate-tests/{aggregate}/{test}',[AggregateTestController::class,'create'])->name('aggregate-tests.create');
+    Route::post('/aggregate-tests/{aggregate}/{test}',[AggregateTestController::class,'store'])->middleware('edit.access')->name('aggregate-tests.store');
+    Route::get('/material-results',[MaterialResultController::class,'index'])->name('material-results.index');
+    Route::get('/material-results/{project}',[MaterialResultController::class,'project'])->name('material-results.project');
+    Route::get('/workflow/{type}',[WorkflowController::class,'index'])->name('workflow.index');
+    Route::post('/workflow/{type}',[WorkflowController::class,'store'])->middleware('edit.access')->name('workflow.store');
+    Route::get('/reports',[WorkflowController::class,'reports'])->name('workflow.reports');
+    Route::get('/reports/{project}',[WorkflowController::class,'reportProject'])->name('workflow.report.project');
+    Route::patch('/reports/{project}/status',[WorkflowController::class,'updateReportStatus'])->middleware('edit.access')->name('workflow.report.status');
+    Route::get('/reports/{project}/final',[WorkflowController::class,'finalReport'])->name('workflow.report.final');
+    Route::get('/documentation',[TestDocumentationController::class,'index'])->name('documentation.index');
+    Route::post('/documentation',[TestDocumentationController::class,'store'])->middleware('edit.access')->name('documentation.store');
+    Route::delete('/documentation/{documentation}',[TestDocumentationController::class,'destroy'])->middleware('edit.access')->name('documentation.destroy');
+    Route::get('/archive',[ArchiveController::class,'index'])->name('archive.index');
+    Route::delete('/archive/{type}/{id}',[ArchiveController::class,'archive'])->middleware('edit.access')->name('archive.store');
+    Route::patch('/archive/{type}/{id}/restore',[ArchiveController::class,'restore'])->middleware('edit.access')->name('archive.restore');
+    Route::delete('/archive/{type}/{id}/permanent',[ArchiveController::class,'destroy'])->middleware('edit.access')->name('archive.destroy');
+    Route::resource('mix-design',MixDesignController::class)->only(['index','store']);
+    Route::get('/mix-design-2012',[MixDesign2012Controller::class,'create'])->name('mix-design-2012.create');
+    Route::post('/mix-design-2012',[MixDesign2012Controller::class,'store'])->middleware('edit.access')->name('mix-design-2012.store');
+    Route::get('/mix-design-2012-combined',[MixDesign2012Controller::class,'createCombined'])->name('mix-design-2012-combined.create');
+    Route::post('/mix-design-2012-combined',[MixDesign2012Controller::class,'storeCombined'])->middleware('edit.access')->name('mix-design-2012-combined.store');
+    Route::get('/accounts',[AccountController::class,'index'])->name('accounts.index');
+    Route::post('/accounts',[AccountController::class,'store'])->name('accounts.store');
+    Route::patch('/accounts/{user}',[AccountController::class,'update'])->name('accounts.update');
+    Route::get('/report-settings',[ReportSettingController::class,'edit'])->name('report-settings.edit');
+    Route::patch('/report-settings',[ReportSettingController::class,'update'])->name('report-settings.update');
+    Route::get('/references',[ReferenceController::class,'index'])->name('references');
+    Route::get('/audit-log',fn()=>view('audit',['logs'=>\App\Models\AuditLog::with('user')->latest('created_at')->paginate(50)]))->name('audit');
+    });
+});

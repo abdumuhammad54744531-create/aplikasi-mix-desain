@@ -1,0 +1,86 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\LaboratoryWorkflow;
+use App\Models\Project;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class ProjectMixDesignReportSelectionTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_project_requires_at_least_one_mix_design_report_choice(): void
+    {
+        $user = User::factory()->create(['username' => 'teknisi-pilihan', 'role' => 'teknisi', 'access_level' => 'edit']);
+
+        $this->actingAs($user)->post(route('projects.store'), [
+            'number' => 'PRJ-PILIHAN-001',
+            'name' => 'Proyek Pilihan Laporan',
+            'status' => 'aktif',
+        ])->assertSessionHasErrors('report_mix_design');
+
+        $this->actingAs($user)->post(route('projects.store'), [
+            'number' => 'PRJ-PILIHAN-001',
+            'name' => 'Proyek Pilihan Laporan',
+            'status' => 'aktif',
+            'report_include_mix_design_2012' => '1',
+        ])->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('projects', [
+            'number' => 'PRJ-PILIHAN-001',
+            'report_include_mix_design_2012' => true,
+            'report_include_mix_design_2012_combined' => false,
+        ]);
+    }
+
+    public function test_report_only_contains_mix_design_types_selected_on_project(): void
+    {
+        $user = User::factory()->create(['username' => 'teknisi-laporan', 'role' => 'teknisi', 'access_level' => 'edit']);
+        $project = Project::create([
+            'number' => 'PRJ-LAPORAN-001',
+            'name' => 'Proyek Penyaringan Laporan',
+            'status' => 'aktif',
+            'report_include_mix_design_2012' => true,
+            'report_include_mix_design_2012_combined' => false,
+        ]);
+
+        $this->createMix($project, 'mix-design-2012', 'MD-STANDAR-001');
+        $this->createMix($project, 'mix-design-2012-combined', 'MD-GABUNGAN-001');
+
+        $this->actingAs($user)->get(route('workflow.report.final', $project))
+            ->assertOk()
+            ->assertSee('MD-STANDAR-001')
+            ->assertDontSee('MD-GABUNGAN-001');
+
+        $project->update(['report_include_mix_design_2012_combined' => true]);
+        $this->actingAs($user)->get(route('workflow.report.final', $project->fresh()))
+            ->assertOk()
+            ->assertSee('MD-STANDAR-001')
+            ->assertSee('MD-GABUNGAN-001');
+
+        $project->update([
+            'report_include_mix_design_2012' => false,
+            'report_include_mix_design_2012_combined' => true,
+        ]);
+        $this->actingAs($user)->get(route('workflow.report.final', $project->fresh()))
+            ->assertOk()
+            ->assertDontSee('MD-STANDAR-001')
+            ->assertSee('MD-GABUNGAN-001');
+    }
+
+    private function createMix(Project $project, string $type, string $number): void
+    {
+        LaboratoryWorkflow::create([
+            'project_id' => $project->id,
+            'type' => $type,
+            'number' => $number,
+            'work_date' => now()->toDateString(),
+            'input_data' => ['fc' => 25, 'water' => 190, 'slump_design' => 100, 'max_size' => 20],
+            'result_data' => ['cement' => 400, 'fine_ssd' => 700, 'coarse_ssd' => 1000],
+            'status' => 'disetujui',
+        ]);
+    }
+}
