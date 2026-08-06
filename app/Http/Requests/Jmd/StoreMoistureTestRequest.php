@@ -19,14 +19,14 @@ class StoreMoistureTestRequest extends JmdFormRequest
             'aggregate_type' => ['required', Rule::enum(AggregateType::class)],
             'tested_at' => ['required', 'date'],
             'technician' => ['required', 'string', 'max:255'],
-            'standard_source' => ['required', 'string', 'max:255'],
+            'standard_source' => ['nullable', 'required_unless:value_source,table', 'string', 'max:255'],
             'observations' => ['required', 'array', 'min:2'],
             'observations.*.id' => ['nullable', 'integer'],
             'observations.*.container_mass' => ['required', 'numeric', 'min:0'],
             'observations.*.wet_container_mass' => ['required', 'numeric', 'gt:observations.*.container_mass'],
             'observations.*.dry_container_mass' => ['required', 'numeric', 'gt:observations.*.container_mass'],
             'notes' => ['nullable', 'string'],
-        ];
+        ] + $this->standardSelectionRules();
     }
 
     public function after(): array

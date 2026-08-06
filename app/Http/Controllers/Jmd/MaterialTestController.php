@@ -37,6 +37,7 @@ use App\Services\Jmd\FineAggregateSpecificGravityService;
 use App\Services\Jmd\MoistureContentService;
 use App\Services\Jmd\SieveAnalysisService;
 use App\Services\Jmd\SiltContentService;
+use App\Services\Jmd\StandardMasterService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -70,7 +71,7 @@ class MaterialTestController extends Controller
         return view('jmd.material-tests.index', compact('project', 'modules'));
     }
 
-    public function form(Project $project, string $module, Request $request)
+    public function form(Project $project, string $module, Request $request, StandardMasterService $standards)
     {
         Gate::authorize('view', $project);
         $config = self::modules()[$module] ?? abort(Response::HTTP_NOT_FOUND);
@@ -86,6 +87,7 @@ class MaterialTestController extends Controller
             'record' => $record,
             'materials' => $project->jmdMaterials()->orderBy('material_type')->get(),
             'history' => $model::query()->where('project_id', $project->id)->latest('tested_at')->latest('id')->limit(15)->get(),
+            'standardTables' => $standards->activeTables($config['standard_keys']),
         ]);
     }
 
@@ -149,6 +151,7 @@ class MaterialTestController extends Controller
         $data = $request->validated();
         $config = self::modules()[$module];
         $model = $config['model'];
+        $data = $this->resolveStandardSelection($data, $config);
         try {
             $result = $calculate($data);
         } catch (InvalidArgumentException $exception) {
@@ -201,7 +204,7 @@ class MaterialTestController extends Controller
             'tested_at' => $data['tested_at'], 'technician' => $data['technician'],
             'status' => $result['valid'] ? 'completed' : 'needs_verification',
             'result_snapshot' => $result,
-            'standard_snapshot' => ['source' => $data['standard_source']] + Arr::only($data, $config['standard_fields']),
+            'standard_snapshot' => ($data['_standard_snapshot'] ?? ['mode' => 'legacy', 'source' => $data['standard_source']]) + Arr::only($data, $config['standard_fields']),
             'notes' => $data['notes'] ?? null, 'updated_by' => auth()->id(),
         ];
         if (! $exists) {
@@ -219,17 +222,41 @@ class MaterialTestController extends Controller
         return $common + $moduleData;
     }
 
+    private function resolveStandardSelection(array $data, array $config): array
+    {
+        if (($data['value_source'] ?? 'legacy') === 'table') {
+            $snapshot = app(StandardMasterService::class)->resolveValue((int) $data['standard_table_value_id'], $config['standard_keys']);
+            $masterAggregate = data_get($snapshot, 'dimension_values.aggregate_type');
+            if ($masterAggregate && isset($data['aggregate_type']) && $masterAggregate !== $data['aggregate_type']) {
+                throw ValidationException::withMessages(['standard_table_value_id' => 'Nilai master tidak sesuai dengan jenis agregat yang dipilih.']);
+            }
+            $target = $config['master_targets'][$snapshot['table_key']] ?? null;
+            if ($target && $snapshot['numeric_value'] !== null) {
+                $data[$target] = $snapshot['numeric_value'];
+            }
+            $data['standard_source'] = $snapshot['source'];
+            $data['_standard_snapshot'] = $snapshot;
+        } elseif (($data['value_source'] ?? 'legacy') === 'manual') {
+            $data['_standard_snapshot'] = [
+                'mode' => 'manual', 'source' => $data['standard_source'],
+                'reason' => $data['manual_standard_reason'], 'captured_at' => now()->toIso8601String(),
+            ];
+        }
+
+        return $data;
+    }
+
     public static function modules(): array
     {
         return [
-            'moisture' => ['title' => 'Kadar Air Agregat', 'code' => 'KA', 'icon' => 'droplet', 'model' => MoistureTest::class, 'position' => 'observation_number', 'result_rows' => 'observations', 'header_fields' => ['aggregate_type'], 'standard_fields' => [], 'item_fields' => ['container_mass', 'wet_container_mass', 'dry_container_mass']],
-            'silt' => ['title' => 'Kadar Lumpur Agregat', 'code' => 'KL', 'icon' => 'water', 'model' => SiltTest::class, 'position' => 'observation_number', 'result_rows' => 'observations', 'header_fields' => ['aggregate_type', 'limit_percent'], 'standard_fields' => ['limit_percent'], 'item_fields' => ['container_mass', 'before_wash_container_mass', 'after_wash_container_mass']],
-            'fine-specific-gravity' => ['title' => 'Berat Jenis Agregat Halus', 'code' => 'BJAH', 'icon' => 'speedometer', 'model' => FineAggregateSpecificGravityTest::class, 'position' => 'observation_number', 'result_rows' => 'observations', 'header_fields' => [], 'standard_fields' => [], 'item_fields' => ['pycnometer_mass', 'ssd_sample_mass', 'pycnometer_sample_water_mass', 'pycnometer_water_mass', 'oven_dry_sample_mass']],
-            'coarse-specific-gravity' => ['title' => 'Berat Jenis Agregat Kasar', 'code' => 'BJAK', 'icon' => 'speedometer2', 'model' => CoarseAggregateSpecificGravityTest::class, 'position' => 'observation_number', 'result_rows' => 'observations', 'header_fields' => [], 'standard_fields' => [], 'item_fields' => ['ssd_air_mass', 'submerged_mass', 'oven_dry_mass']],
-            'bulk-density' => ['title' => 'Berat Volume Material', 'code' => 'BV', 'icon' => 'boxes', 'model' => BulkDensityTest::class, 'position' => 'observation_number', 'result_rows' => 'observations', 'header_fields' => ['material_type'], 'standard_fields' => ['mass_unit'], 'item_fields' => ['condition', 'mould_volume_cm3', 'mould_mass', 'filled_mould_mass']],
-            'cement-specific-gravity' => ['title' => 'Berat Jenis Semen', 'code' => 'BJS', 'icon' => 'hexagon', 'model' => CementSpecificGravityTest::class, 'position' => 'observation_number', 'result_rows' => 'observations', 'header_fields' => [], 'standard_fields' => [], 'item_fields' => ['bottle_kerosene_mass', 'bottle_cement_kerosene_mass', 'initial_reading_ml', 'final_reading_ml', 'test_temperature_c', 'water_density']],
-            'sieve' => ['title' => 'Analisis Saringan', 'code' => 'SA', 'icon' => 'bar-chart-steps', 'model' => SieveTest::class, 'position' => 'sort_order', 'result_rows' => 'rows', 'header_fields' => ['aggregate_type', 'initial_sample_mass', 'loss_tolerance_percent', 'gradation_zone'], 'standard_fields' => ['loss_tolerance_percent', 'gradation_zone'], 'item_fields' => ['sieve_label', 'sieve_size_mm', 'is_pan', 'retained_mass', 'lower_limit_percent', 'upper_limit_percent', 'planned_passing_percent']],
-            'abrasion' => ['title' => 'Abrasi Agregat Kasar', 'code' => 'ABR', 'icon' => 'gear-wide-connected', 'model' => AbrasionTest::class, 'position' => 'observation_number', 'result_rows' => 'observations', 'header_fields' => ['inspection_gradation', 'steel_ball_count', 'revolution_count', 'limit_percent'], 'standard_fields' => ['limit_percent'], 'item_fields' => ['passing_sieve_mm', 'retained_sieve_mm', 'initial_mass', 'retained_no12_mass']],
+            'moisture' => ['title' => 'Kadar Air Agregat', 'code' => 'KA', 'icon' => 'droplet', 'model' => MoistureTest::class, 'position' => 'observation_number', 'result_rows' => 'observations', 'header_fields' => ['aggregate_type'], 'standard_fields' => [], 'standard_keys' => [], 'master_targets' => [], 'item_fields' => ['container_mass', 'wet_container_mass', 'dry_container_mass']],
+            'silt' => ['title' => 'Kadar Lumpur Agregat', 'code' => 'KL', 'icon' => 'water', 'model' => SiltTest::class, 'position' => 'observation_number', 'result_rows' => 'observations', 'header_fields' => ['aggregate_type', 'limit_percent'], 'standard_fields' => ['limit_percent'], 'standard_keys' => ['silt_limits'], 'master_targets' => ['silt_limits' => 'limit_percent'], 'item_fields' => ['container_mass', 'before_wash_container_mass', 'after_wash_container_mass']],
+            'fine-specific-gravity' => ['title' => 'Berat Jenis Agregat Halus', 'code' => 'BJAH', 'icon' => 'speedometer', 'model' => FineAggregateSpecificGravityTest::class, 'position' => 'observation_number', 'result_rows' => 'observations', 'header_fields' => [], 'standard_fields' => [], 'standard_keys' => [], 'master_targets' => [], 'item_fields' => ['pycnometer_mass', 'ssd_sample_mass', 'pycnometer_sample_water_mass', 'pycnometer_water_mass', 'oven_dry_sample_mass']],
+            'coarse-specific-gravity' => ['title' => 'Berat Jenis Agregat Kasar', 'code' => 'BJAK', 'icon' => 'speedometer2', 'model' => CoarseAggregateSpecificGravityTest::class, 'position' => 'observation_number', 'result_rows' => 'observations', 'header_fields' => [], 'standard_fields' => [], 'standard_keys' => [], 'master_targets' => [], 'item_fields' => ['ssd_air_mass', 'submerged_mass', 'oven_dry_mass']],
+            'bulk-density' => ['title' => 'Berat Volume Material', 'code' => 'BV', 'icon' => 'boxes', 'model' => BulkDensityTest::class, 'position' => 'observation_number', 'result_rows' => 'observations', 'header_fields' => ['material_type'], 'standard_fields' => ['mass_unit'], 'standard_keys' => [], 'master_targets' => [], 'item_fields' => ['condition', 'mould_volume_cm3', 'mould_mass', 'filled_mould_mass']],
+            'cement-specific-gravity' => ['title' => 'Berat Jenis Semen', 'code' => 'BJS', 'icon' => 'hexagon', 'model' => CementSpecificGravityTest::class, 'position' => 'observation_number', 'result_rows' => 'observations', 'header_fields' => [], 'standard_fields' => [], 'standard_keys' => [], 'master_targets' => [], 'item_fields' => ['bottle_kerosene_mass', 'bottle_cement_kerosene_mass', 'initial_reading_ml', 'final_reading_ml', 'test_temperature_c', 'water_density']],
+            'sieve' => ['title' => 'Analisis Saringan', 'code' => 'SA', 'icon' => 'bar-chart-steps', 'model' => SieveTest::class, 'position' => 'sort_order', 'result_rows' => 'rows', 'header_fields' => ['aggregate_type', 'initial_sample_mass', 'loss_tolerance_percent', 'gradation_zone'], 'standard_fields' => ['loss_tolerance_percent', 'gradation_zone'], 'standard_keys' => ['sieve_loss_tolerance'], 'master_targets' => ['sieve_loss_tolerance' => 'loss_tolerance_percent'], 'item_fields' => ['sieve_label', 'sieve_size_mm', 'is_pan', 'retained_mass', 'lower_limit_percent', 'upper_limit_percent', 'planned_passing_percent']],
+            'abrasion' => ['title' => 'Abrasi Agregat Kasar', 'code' => 'ABR', 'icon' => 'gear-wide-connected', 'model' => AbrasionTest::class, 'position' => 'observation_number', 'result_rows' => 'observations', 'header_fields' => ['inspection_gradation', 'steel_ball_count', 'revolution_count', 'limit_percent'], 'standard_fields' => ['limit_percent'], 'standard_keys' => ['abrasion_limits'], 'master_targets' => ['abrasion_limits' => 'limit_percent'], 'item_fields' => ['passing_sieve_mm', 'retained_sieve_mm', 'initial_mass', 'retained_no12_mass']],
         ];
     }
 }

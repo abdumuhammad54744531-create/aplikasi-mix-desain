@@ -15,10 +15,11 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::updateOrCreate(['username'=>'admin'],[
-            'name'=>'Administrator Laboratorium','email'=>'admin@mixdesign.local',
-            'password'=>'Admin@12345','role'=>'administrator','must_change_password'=>true,'is_active'=>true,
+        User::updateOrCreate(['username' => 'admin'], [
+            'name' => 'Administrator Laboratorium', 'email' => 'admin@mixdesign.local',
+            'password' => 'Admin@12345', 'role' => 'administrator', 'must_change_password' => true, 'is_active' => true,
         ]);
         $this->call(StandardReferenceSeeder::class);
+        $this->call(JmdStandardMasterSeeder::class);
     }
 }

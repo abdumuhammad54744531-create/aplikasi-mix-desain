@@ -16,13 +16,13 @@ class StoreAbrasionTestRequest extends JmdFormRequest
             'steel_ball_count' => ['nullable', 'integer', 'min:0'], 'revolution_count' => ['nullable', 'integer', 'min:0'],
             'limit_percent' => ['required', 'numeric', 'between:0,100'],
             'tested_at' => ['required', 'date'], 'technician' => ['required', 'string', 'max:255'],
-            'standard_source' => ['required', 'string', 'max:255'], 'notes' => ['nullable', 'string'],
+            'standard_source' => ['nullable', 'required_unless:value_source,table', 'string', 'max:255'], 'notes' => ['nullable', 'string'],
             'observations' => ['required', 'array', 'min:2'], 'observations.*.id' => ['nullable', 'integer'],
             'observations.*.passing_sieve_mm' => ['nullable', 'numeric', 'min:0'],
             'observations.*.retained_sieve_mm' => ['nullable', 'numeric', 'min:0'],
             'observations.*.initial_mass' => ['required', 'numeric', 'min:0.000001'],
             'observations.*.retained_no12_mass' => ['required', 'numeric', 'min:0'],
-        ];
+        ] + $this->standardSelectionRules();
     }
 
     public function after(): array

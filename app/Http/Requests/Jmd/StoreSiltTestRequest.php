@@ -19,14 +19,14 @@ class StoreSiltTestRequest extends JmdFormRequest
             'tested_at' => ['required', 'date'],
             'technician' => ['required', 'string', 'max:255'],
             'limit_percent' => ['required', 'numeric', 'min:0'],
-            'standard_source' => ['required', 'string', 'max:255'],
+            'standard_source' => ['nullable', 'required_unless:value_source,table', 'string', 'max:255'],
             'observations' => ['required', 'array', 'min:2'],
             'observations.*.id' => ['nullable', 'integer'],
             'observations.*.container_mass' => ['required', 'numeric', 'min:0'],
             'observations.*.before_wash_container_mass' => ['required', 'numeric', 'gt:observations.*.container_mass'],
             'observations.*.after_wash_container_mass' => ['required', 'numeric', 'gt:observations.*.container_mass', 'lte:observations.*.before_wash_container_mass'],
             'notes' => ['nullable', 'string'],
-        ];
+        ] + $this->standardSelectionRules();
     }
 
     public function after(): array

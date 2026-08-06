@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\{AccountController,ArchiveController,AuthController,DashboardController,LaboratoryWorkRequestController,ProjectController,MaterialSourceController,MixDesignController,ReferenceController,MaterialTestController,AggregateTestController,MaterialResultController,WorkflowController,MixDesign2012Controller,ReportSettingController,TestDocumentationController};
 use App\Http\Controllers\Jmd\MaterialTestController as JmdMaterialTestController;
+use App\Http\Controllers\Jmd\StandardMasterController;
 Route::redirect('/','/dashboard');
 Route::get('/verify/{code}',[WorkflowController::class,'publicVerification'])->name('public.verify');
 Route::get('/verify/{code}/signatory/{signature}',[WorkflowController::class,'publicSignerVerification'])->name('public.signer');
@@ -42,6 +43,15 @@ Route::middleware('auth')->group(function(){
     Route::post('/jmd/projects/{project}/material-tests/cement-specific-gravity',[JmdMaterialTestController::class,'storeCementSpecificGravity'])->middleware('edit.access')->name('jmd.material-tests.cement-specific-gravity.store');
     Route::post('/jmd/projects/{project}/material-tests/sieve',[JmdMaterialTestController::class,'storeSieve'])->middleware('edit.access')->name('jmd.material-tests.sieve.store');
     Route::post('/jmd/projects/{project}/material-tests/abrasion',[JmdMaterialTestController::class,'storeAbrasion'])->middleware('edit.access')->name('jmd.material-tests.abrasion.store');
+    Route::get('/jmd/standards',[StandardMasterController::class,'index'])->name('jmd.standards.index');
+    Route::post('/jmd/standards',[StandardMasterController::class,'storeReference'])->middleware('edit.access')->name('jmd.standards.store');
+    Route::post('/jmd/standards/{standard}/revise',[StandardMasterController::class,'reviseReference'])->middleware('edit.access')->name('jmd.standards.revise');
+    Route::patch('/jmd/standards/{standard}/toggle',[StandardMasterController::class,'toggleReference'])->middleware('edit.access')->name('jmd.standards.toggle');
+    Route::post('/jmd/standards/{standard}/tables',[StandardMasterController::class,'storeTable'])->middleware('edit.access')->name('jmd.standard-tables.store');
+    Route::post('/jmd/standard-tables/{table}/revise',[StandardMasterController::class,'reviseTable'])->middleware('edit.access')->name('jmd.standard-tables.revise');
+    Route::post('/jmd/standard-tables/{table}/values',[StandardMasterController::class,'storeValue'])->middleware('edit.access')->name('jmd.standard-values.store');
+    Route::put('/jmd/standard-values/{value}',[StandardMasterController::class,'updateValue'])->middleware('edit.access')->name('jmd.standard-values.update');
+    Route::delete('/jmd/standard-values/{value}',[StandardMasterController::class,'destroyValue'])->middleware('edit.access')->name('jmd.standard-values.destroy');
     Route::get('/aggregate-tests/{aggregate}',[AggregateTestController::class,'menu'])->name('aggregate-tests.menu');
     Route::get('/aggregate-worksheet/{aggregate}',[AggregateTestController::class,'worksheet'])->name('aggregate-tests.worksheet');
     Route::post('/aggregate-worksheet/{aggregate}',[AggregateTestController::class,'storeWorksheet'])->middleware('edit.access')->name('aggregate-tests.worksheet.store');

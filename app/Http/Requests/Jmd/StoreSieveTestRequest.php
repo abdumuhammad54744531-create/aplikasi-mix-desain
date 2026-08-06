@@ -19,7 +19,7 @@ class StoreSieveTestRequest extends JmdFormRequest
             'loss_tolerance_percent' => ['required', 'numeric', 'min:0'],
             'gradation_zone' => ['nullable', 'string', 'max:50'],
             'tested_at' => ['required', 'date'], 'technician' => ['required', 'string', 'max:255'],
-            'standard_source' => ['required', 'string', 'max:255'], 'notes' => ['nullable', 'string'],
+            'standard_source' => ['nullable', 'required_unless:value_source,table', 'string', 'max:255'], 'notes' => ['nullable', 'string'],
             'observations' => ['required', 'array', 'min:2'], 'observations.*.id' => ['nullable', 'integer'],
             'observations.*.sieve_label' => ['required', 'string', 'max:50'],
             'observations.*.sieve_size_mm' => ['nullable', 'numeric', 'min:0'],
@@ -28,7 +28,7 @@ class StoreSieveTestRequest extends JmdFormRequest
             'observations.*.lower_limit_percent' => ['nullable', 'numeric', 'between:0,100'],
             'observations.*.upper_limit_percent' => ['nullable', 'numeric', 'between:0,100'],
             'observations.*.planned_passing_percent' => ['nullable', 'numeric', 'between:0,100'],
-        ];
+        ] + $this->standardSelectionRules();
     }
 
     public function after(): array

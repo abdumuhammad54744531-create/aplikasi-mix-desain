@@ -5,6 +5,7 @@ namespace App\Http\Requests\Jmd;
 use App\Models\Project;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 abstract class JmdFormRequest extends FormRequest
@@ -14,6 +15,9 @@ abstract class JmdFormRequest extends FormRequest
         $project = $this->route('project');
         if ($project instanceof Project) {
             $this->merge(['project_id' => $project->getKey()]);
+        }
+        if (! $this->filled('value_source')) {
+            $this->merge(['value_source' => 'legacy']);
         }
     }
 
@@ -53,5 +57,14 @@ abstract class JmdFormRequest extends FormRequest
         if (! $belongs) {
             $validator->errors()->add($field, 'Record yang dipilih tidak terhubung ke proyek ini.');
         }
+    }
+
+    protected function standardSelectionRules(): array
+    {
+        return [
+            'value_source' => ['required', Rule::in(['legacy', 'table', 'manual'])],
+            'standard_table_value_id' => ['nullable', 'integer', 'required_if:value_source,table', 'exists:standard_table_values,id'],
+            'manual_standard_reason' => ['nullable', 'string', 'min:5', 'required_if:value_source,manual'],
+        ];
     }
 }
