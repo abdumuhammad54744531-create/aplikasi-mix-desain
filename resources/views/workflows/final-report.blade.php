@@ -64,7 +64,7 @@ $fineSource=$materialSources->firstWhere('type','fine')??$materialSources->first
 $coarseSource=$materialSources->firstWhere('type','coarse')??$materialSources->firstWhere('type','kerikil');
 $cementSource=$materialSources->firstWhere('type','cement')??$materialSources->firstWhere('type','semen');
 $waterSource=$materialSources->firstWhere('type','water')??$materialSources->firstWhere('type','air');
-$runLabels=['moisture'=>'Pemeriksaan Kadar Air','silt'=>'Pemeriksaan Kadar Lumpur/Lolos No. 200','specific-gravity'=>'Pemeriksaan Berat Jenis dan Penyerapan','bulk-density'=>'Pemeriksaan Berat Isi','sieve'=>'Analisis Saringan','abrasion'=>'Keausan Agregat dengan Mesin Los Angeles'];
+$runLabels=['moisture'=>'Pemeriksaan Kadar Air','silt'=>'Pemeriksaan Kadar Lumpur/Lolos No. 200','specific-gravity'=>'Pemeriksaan Berat Jenis dan Penyerapan','bulk-density'=>'Pemeriksaan Berat Isi','sieve'=>'Analisis Saringan','los-angeles'=>'Keausan Agregat dengan Mesin Los Angeles'];
 $sieveInfo=[
  'fine'=>[['3/8 in',9.5,'r095'],['No.4',4.75,'r475'],['No.8',2.36,'r236'],['No.16',1.18,'r118'],['No.30',.60,'r060'],['No.50',.30,'r030'],['No.100',.15,'r015'],['Wadah dasar',0,'pan']],
  'coarse'=>[['3 in',75,'r750'],['1½ in',37.5,'r375'],['¾ in',19,'r190'],['⅜ in',9.5,'r095'],['No.4',4.75,'r475'],['Wadah dasar',0,'pan']]
@@ -309,7 +309,7 @@ $run=$latestRun('coarse','sieve');
 @endforeach
 
 @php
-$abrasionRun=$latestRun('coarse','abrasion');
+$abrasionRun=$latestRun('coarse','los-angeles');
 @endphp
 <section class="page">{!!$header()!!}<h2 class="section-title">LAMPIRAN<br>KEKERASAN/KEAUSAN AGREGAT KASAR<br>MESIN LOS ANGELES</h2>
 @if($abrasionRun)

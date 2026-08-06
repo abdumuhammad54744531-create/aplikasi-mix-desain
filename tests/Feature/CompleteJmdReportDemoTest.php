@@ -34,7 +34,11 @@ class CompleteJmdReportDemoTest extends TestCase
         $this->assertNotNull($project->legalized_at);
 
         $this->get(route('public.report', $project->verification_code))
-            ->assertOk()->assertSee('Pembangunan Gedung Laboratorium Beton')->assertSee('Observasi 2');
+            ->assertOk()
+            ->assertSee('Pembangunan Gedung Laboratorium Beton')
+            ->assertSee('Observasi 2')
+            ->assertSee('DEMO-COARSE-LOSANGELES')
+            ->assertDontSee('Data pengujian belum tersedia pada proyek ini');
         $this->get(route('public.download', $project->verification_code))
             ->assertOk()->assertHeader('content-type', 'application/pdf');
     }
