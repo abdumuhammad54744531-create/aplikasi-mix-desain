@@ -23,13 +23,13 @@
 @endpush
 @section('content')
 <div class="d-flex justify-content-end mb-3"><a class="btn btn-outline-primary" href="{{route('documentation.index',['project'=>$project?->id,'module'=>$combined?'mix-design-2012-combined':'mix-design-2012'])}}"><i class="bi bi-camera me-2"></i>Dokumentasi Desain Campuran</a></div>
-<form method="post" action="{{route($combined?'mix-design-2012-combined.store':'mix-design-2012.store')}}" id="mixForm">@csrf
+<form method="post" action="{{route($combined?'mix-design-2012-combined.store':'mix-design-2012.store')}}" id="mixForm">@csrf<input type="hidden" name="workflow_id" value="{{$savedMix?->id}}">
 <div class="md-sheet">
  <div class="md-head"><h4>PERENCANAAN CAMPURAN BETON NORMAL</h4><div>SNI 7656:2012{{$combined?' — GRADASI GABUNGAN':''}}</div><p>Laboratorium Bahan dan Struktur</p></div>
  <div class="p-3 border-bottom">
   <div class="row g-3">
    <div class="col-md-5"><label class="form-label">Proyek</label><select class="form-select" name="project_id" id="projectSelector" required><option value="">— Pilih proyek aktif —</option>@foreach($projects as $p)<option value="{{$p->id}}" @selected(old('project_id',$project?->id)==$p->id)>{{$p->number}} — {{$p->name}}</option>@endforeach</select></div>
-   <div class="col-md-3"><label class="form-label">Tanggal perencanaan</label><input class="form-control" type="date" name="work_date" value="{{old('work_date',date('Y-m-d'))}}" required></div>
+   <div class="col-md-3"><label class="form-label">Tanggal perencanaan</label><input class="form-control" type="date" name="work_date" value="{{old('work_date',$savedMix?->work_date?->format('Y-m-d')??date('Y-m-d'))}}" required></div>
    <div class="col-md-4"><label class="form-label">Pemohon / perusahaan</label><input class="form-control" value="{{$project?->owner ?? '-'}}" readonly></div>
   </div>
   @if($project)<div class="source-note mt-3"><b>Data proyek {{$project->number}}</b> dipilih. Nilai material di bawah diambil dari pemeriksaan laboratorium terakhir.</div>
@@ -44,7 +44,7 @@
  </div>
 
  @php
- $d=fn($key,$default)=>old("data.$key",$default);
+ $d=fn($key,$default)=>old("data.$key",$savedInput[$key]??$default);
  $hasIncomplete=!$project || !$water || collect($required)->contains(fn($item)=>$item[2]===null);
  $cell=function($key,$label,$value,$unit='') use($d,$required){ $labValue=array_key_exists($key,$required); $missing=$labValue&&$required[$key][2]===null; return '<div class="md-cell '.($missing?'missing':'').'"><label>'.$label.'</label><input class="calc-input" type="number" step="any" name="data['.$key.']" data-key="'.$key.'" value="'.e($d($key,$value)).'" required '.($labValue?'readonly':'').'><span class="unit">'.$unit.'</span>'.($missing?'<span class="missing-note">Belum ada hasil pengujian material</span>':($labValue?'<span class="formula">Otomatis dari hasil uji laboratorium</span>':'')).'</div>'; };
  $result=fn($key,$label,$unit='')=>'<div class="md-cell"><label>'.$label.'</label><div class="md-result" data-result="'.$key.'">—</div><span class="unit">'.$unit.'</span></div>';
@@ -67,7 +67,7 @@
   {!!$cell('fc',"Kuat tekan f'c",25,'MPa')!!}{!!$cell('age','Umur pengujian',28,'hari')!!}{!!$cell('volume_work','Volume pekerjaan',1,'m³')!!}
  </div></section>
  <section class="md-section"><div class="md-title"><span class="md-no">3</span>Penetapan deviasi standar</div><div class="p-3"><div class="row g-3"><div class="col-lg-7"><table class="table table-bordered reference-table mb-0" id="sdTable"><thead><tr><th>Pilih</th><th class="text-start">Ketersediaan/kendali data laboratorium</th><th>Deviasi standar (MPa)</th></tr></thead><tbody>
-  @foreach([[2.8,'Data historis sangat baik'],[3.5,'Data historis baik'],[4.8,'Data historis cukup'],[6.0,'Data historis terbatas'],[7.5,'Belum tersedia data historis']] as [$sdValue,$sdLabel])<tr class="{{$sdValue==7.5?'selected':''}}"><td class="text-center"><input class="form-check-input sd-choice" type="radio" name="sd_choice" value="{{$sdValue}}" @checked($sdValue==7.5)></td><td>{{$sdLabel}}</td><td class="text-center">{{$sdValue}}</td></tr>@endforeach
+  @foreach([[2.8,'Data historis sangat baik'],[3.5,'Data historis baik'],[4.8,'Data historis cukup'],[6.0,'Data historis terbatas'],[7.5,'Belum tersedia data historis']] as [$sdValue,$sdLabel])<tr class="{{(float)$d('sd',7.5)===(float)$sdValue?'selected':''}}"><td class="text-center"><input class="form-check-input sd-choice" type="radio" name="sd_choice" value="{{$sdValue}}" @checked((float)$d('sd',7.5)===(float)$sdValue)></td><td>{{$sdLabel}}</td><td class="text-center">{{$sdValue}}</td></tr>@endforeach
   </tbody></table></div><div class="col-lg-5"><div class="reference-help mb-2">Pilih deviasi berdasarkan catatan produksi laboratorium. Nilai masih dapat disesuaikan jika tersedia perhitungan deviasi aktual.</div><div class="md-grid" style="grid-template-columns:1fr 1fr">{!!$cell('sd','Deviasi standar terpilih',7.5,'MPa')!!}{!!$cell('sd_additional','Tambahan deviasi',0,'MPa')!!}{!!$cell('test_count','Jumlah hasil uji',30,'buah')!!}{!!$cell('deviation_factor','Faktor pengali',1.64,'')!!}</div></div></div></div>
   <div class="step-formula">Margin = (deviasi standar + tambahan deviasi) × faktor pengali.</div>
  </section>
@@ -82,9 +82,9 @@
    [3,'Kolom bangunan',100,25],
    [4,'Perkerasan dan pelat lantai',75,25],
    [5,'Beton massa',50,25],
-  ] as [$id,$label,$max,$min])<tr data-slump-row="{{$id}}" class="{{$id===2?'selected':''}}"><td class="text-center"><input type="radio" class="form-check-input slump-choice" name="slump_choice" value="{{$id}}" data-min="{{$min}}" data-max="{{$max}}" @checked($id===2)></td><td>{{$label}}</td><td class="text-center">{{$max}}</td><td class="text-center">{{$min}}</td></tr>@endforeach
+  ] as [$id,$label,$max,$min])<tr data-slump-row="{{$id}}" class="{{(int)$d('construction_type',2)===$id?'selected':''}}"><td class="text-center"><input type="radio" class="form-check-input slump-choice" name="slump_choice" value="{{$id}}" data-min="{{$min}}" data-max="{{$max}}" @checked((int)$d('construction_type',2)===$id)></td><td>{{$label}}</td><td class="text-center">{{$max}}</td><td class="text-center">{{$min}}</td></tr>@endforeach
   </tbody></table></div></div><div class="col-lg-4"><div class="reference-help mb-2"><b>Cara mengisi:</b> pilih tipe konstruksi pada tabel. Batas minimum dan maksimum akan terisi otomatis, kemudian tentukan slump rencana di dalam batas tersebut.</div>
-  <input type="hidden" name="data[construction_type]" data-key="construction_type" value="2">
+  <input type="hidden" name="data[construction_type]" data-key="construction_type" value="{{$d('construction_type',2)}}">
   <div class="md-cell"><label>Slump minimum</label><input class="calc-input" type="number" step="any" name="data[slump_min]" data-key="slump_min" value="{{$d('slump_min',25)}}" readonly><span class="unit">mm</span></div>
   <div class="md-cell"><label>Slump maksimum</label><input class="calc-input" type="number" step="any" name="data[slump_max]" data-key="slump_max" value="{{$d('slump_max',100)}}" readonly><span class="unit">mm</span></div>
   <div class="md-cell"><label>Penentuan nilai slump awal</label><input class="calc-input" type="number" min="25" max="100" step="5" name="data[slump_design]" data-key="slump_design" value="{{$d('slump_design',100)}}" required><span class="unit">mm — dapat diketik sesuai kebutuhan dalam batas tabel</span></div>
@@ -105,7 +105,7 @@
  ] as [$airLabel,$slumpLabel,$values,$airKey,$rangeKey])<tr data-water-row="{{$airKey}}-{{$rangeKey}}"><td>{{$airLabel}}</td><td>{{$slumpLabel}}</td>@foreach($values as $i=>$wv)<td class="text-center" data-water-cell="{{$airKey}}-{{$rangeKey}}-{{$i}}">{{$wv}}</td>@endforeach</tr>@endforeach
  </tbody></table></div></div><div class="md-grid">
   <div class="md-cell"><label>Jenis beton</label><select class="calc-input" name="data[air_entrained]" data-key="air_entrained"><option value="0" @selected((int)$d('air_entrained',0)===0)>Tanpa kandungan udara</option><option value="1" @selected((int)$d('air_entrained',0)===1)>Dengan kandungan udara</option></select><span class="unit">Pilih sesuai persyaratan pekerjaan</span></div>
-  <div class="md-cell"><label>Kondisi pemaparan (untuk beton berudara)</label><select class="calc-input" name="data[exposure_level]" data-key="exposure_level"><option value="0">Ringan</option><option value="1" selected>Sedang</option><option value="2">Berat</option></select><span class="unit">Mempengaruhi sasaran kadar udara</span></div>
+  <div class="md-cell"><label>Kondisi pemaparan (untuk beton berudara)</label><select class="calc-input" name="data[exposure_level]" data-key="exposure_level"><option value="0" @selected((int)$d('exposure_level',1)===0)>Ringan</option><option value="1" @selected((int)$d('exposure_level',1)===1)>Sedang</option><option value="2" @selected((int)$d('exposure_level',1)===2)>Berat</option></select><span class="unit">Mempengaruhi sasaran kadar udara</span></div>
   <div class="md-cell"><label>Kebutuhan air dari tabel</label><input class="calc-input" type="number" step="any" name="data[water]" data-key="water" value="{{$d('water',193)}}" readonly><span class="unit">kg/m³ — otomatis dari slump, ukuran agregat, dan jenis beton</span></div>
   <div class="md-cell"><label>Kadar udara dari tabel</label><input class="calc-input" type="number" step="any" name="data[air_content]" data-key="air_content" value="{{$d('air_content',1.5)}}" readonly><span class="unit">% — otomatis</span></div>
  </div><div class="step-formula">Sel hijau menunjukkan nilai tabel yang sedang digunakan berdasarkan pilihan slump, ukuran agregat, dan kandungan udara.</div></section>
@@ -168,7 +168,7 @@
    </tbody></table></div>
   </div>
  </section>
- <div class="p-3"><label class="form-label">Catatan perencanaan</label><textarea class="form-control" name="notes" rows="3">{{old('notes')}}</textarea></div>
+ <div class="p-3"><label class="form-label">Catatan perencanaan</label><textarea class="form-control" name="notes" rows="3">{{old('notes',$savedMix?->notes)}}</textarea></div>
  <div class="sticky-save d-flex justify-content-between align-items-center"><span class="small {{$hasIncomplete?'text-danger':'text-secondary'}}"><i class="bi {{$hasIncomplete?'bi-exclamation-triangle':'bi-lightning-charge'}}"></i> {{$hasIncomplete?'Lengkapi seluruh pengujian material agar desain campuran dapat disimpan.':'Semua hasil diperbarui otomatis saat masukan berubah.'}}</span><button class="btn btn-primary px-4" type="submit" @disabled($hasIncomplete)><i class="bi bi-save me-2"></i>Simpan dan Lanjut ke Kuat Tekan</button></div>
 </div></form>
 @endsection

@@ -4,6 +4,7 @@ use App\Models\{AggregateTestRun,CementTest,WaterTest,FineAggregateTest,CoarseAg
 use App\Services\AuditService;
 use App\Services\MixDesign\MixDesign2012Calculator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 class MixDesign2012Controller extends Controller {
  public function create(Request $r){return $this->showForm($r,false);}
  public function createCombined(Request $r){return $this->showForm($r,true);}
@@ -17,19 +18,20 @@ class MixDesign2012Controller extends Controller {
    'coarse_absorption'=>['Kerikil','Penyerapan',$coarse?->absorption],'coarse_moisture'=>['Kerikil','Kadar air',$coarse?->field_moisture],'coarse_density'=>['Kerikil','Berat isi padat',$coarse?->compacted_bulk_density]];
   $fineSieve=$project?AggregateTestRun::where('project_id',$project->id)->where('aggregate_type','fine')->where('test_type','sieve')->latest()->first():null;
   $coarseSieve=$project?AggregateTestRun::where('project_id',$project->id)->where('aggregate_type','coarse')->where('test_type','sieve')->latest()->first():null;
+  $mixType=$combined?'mix-design-2012-combined':'mix-design-2012';$savedMix=$project?LaboratoryWorkflow::where('project_id',$project->id)->where('type',$mixType)->latest()->first():null;$savedInput=$savedMix?->input_data??[];
   $combinedLimits=$this->combinedGradationLimits();
-  return view('mix-design-2012.form',compact('project','cement','water','fine','coarse','required','combined','fineSieve','coarseSieve','combinedLimits')+['projects'=>Project::where('status','aktif')->get()]);
+  return view('mix-design-2012.form',compact('project','cement','water','fine','coarse','required','combined','fineSieve','coarseSieve','combinedLimits','savedMix','savedInput')+['projects'=>Project::where('status','aktif')->get()]);
  }
  public function store(Request $r,MixDesign2012Calculator $calc){return $this->saveDesign($r,$calc,false);}
  public function storeCombined(Request $r,MixDesign2012Calculator $calc){return $this->saveDesign($r,$calc,true);}
  private function saveDesign(Request $r,MixDesign2012Calculator $calc,bool $combined){
-  $d=$r->validate(['project_id'=>'required|exists:projects,id','work_date'=>'required|date','data'=>'required|array','data.combined_fine_percent'=>($combined?'required':'nullable').'|numeric|between:0,100','data.gradation_max_size'=>($combined?'required':'nullable').'|in:10,20,40','data.gradation_curve'=>($combined?'required':'nullable').'|integer|between:1,5','notes'=>'nullable']);
+  $d=$r->validate(['workflow_id'=>'nullable|integer','project_id'=>'required|exists:projects,id','work_date'=>'required|date','data'=>'required|array','data.combined_fine_percent'=>($combined?'required':'nullable').'|numeric|between:0,100','data.gradation_max_size'=>($combined?'required':'nullable').'|in:10,20,40','data.gradation_curve'=>($combined?'required':'nullable').'|integer|between:1,5','notes'=>'nullable']);
   $cement=CementTest::where('project_id',$d['project_id'])->latest()->first();$water=WaterTest::where('project_id',$d['project_id'])->latest()->first();$fine=FineAggregateTest::where('project_id',$d['project_id'])->latest()->first();$coarse=CoarseAggregateTest::where('project_id',$d['project_id'])->latest()->first();
   $complete=$cement?->specific_gravity!==null&&$water&&$fine?->specific_gravity_ssd!==null&&$fine?->absorption!==null&&$fine?->field_moisture!==null&&$fine?->compacted_bulk_density!==null&&$fine?->fineness_modulus!==null&&$coarse?->specific_gravity_ssd!==null&&$coarse?->absorption!==null&&$coarse?->field_moisture!==null&&$coarse?->compacted_bulk_density!==null;
   if(!$complete)return back()->withInput()->withErrors(['data'=>'Desain campuran belum dapat disimpan karena hasil pengujian material belum lengkap.']);
   $optimized=null;if($combined){$fineSieve=AggregateTestRun::where('project_id',$d['project_id'])->where('aggregate_type','fine')->where('test_type','sieve')->latest()->first();$coarseSieve=AggregateTestRun::where('project_id',$d['project_id'])->where('aggregate_type','coarse')->where('test_type','sieve')->latest()->first();$optimized=$this->optimizeCombinedGradation($fineSieve,$coarseSieve,(int)$d['data']['gradation_max_size'],(int)$d['data']['gradation_curve']);if(!$optimized)return back()->withInput()->withErrors(['data.combined_fine_percent'=>'Analisis saringan pasir dan kerikil harus lengkap untuk menghitung gradasi gabungan.']);$d['data']['combined_mode']=1;$d['data']['combined_fine_percent']=$optimized['fine_percent'];$d['data']['combined_coarse_percent']=$optimized['coarse_percent'];$d['data']['combined_deviation']=$optimized['deviation'];}
   try{$result=$calc->calculate(array_map('floatval',$d['data']));if($combined)$result['combined_gradation_rows']=$optimized['rows'];}catch(\InvalidArgumentException $e){return back()->withInput()->withErrors(['data'=>$e->getMessage()]);}
-  $type=$combined?'mix-design-2012-combined':'mix-design-2012';$record=LaboratoryWorkflow::create(['project_id'=>$d['project_id'],'type'=>$type,'number'=>($combined?'MD12G-':'MD12-').now()->format('ymdHis'),'work_date'=>$d['work_date'],'input_data'=>$d['data'],'result_data'=>$result,'notes'=>$d['notes']??null,'created_by'=>auth()->id()]);
+  $type=$combined?'mix-design-2012-combined':'mix-design-2012';$id=$d['workflow_id']??null;$attributes=['project_id'=>$d['project_id'],'type'=>$type,'work_date'=>$d['work_date'],'input_data'=>$d['data'],'result_data'=>$result,'notes'=>$d['notes']??null];$record=DB::transaction(function()use($id,$d,$type,$attributes,$combined){if($id){$record=LaboratoryWorkflow::whereKey($id)->where('project_id',$d['project_id'])->where('type',$type)->lockForUpdate()->firstOrFail();$record->update($attributes);return $record;}return LaboratoryWorkflow::create([...$attributes,'number'=>($combined?'MD12G-':'MD12-').now()->format('ymdHis'),'created_by'=>auth()->id()]);});
   AuditService::record($combined?'Desain Campuran SNI 7656:2012 Gradasi Gabungan':'Desain Campuran SNI 7656:2012','simpan',$record);
   return redirect()->route('workflow.index',['type'=>'compressive-strength','project'=>$d['project_id']])->with('success','Desain campuran berhasil disimpan. Silakan lanjutkan pengujian kuat tekan.');
  }

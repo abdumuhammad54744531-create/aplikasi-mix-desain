@@ -38,8 +38,17 @@ class AggregateWorksheetLoadingTest extends TestCase
         $response = $this->actingAs($user)->get(route('aggregate-tests.worksheet', 'fine'));
 
         $response->assertOk()
-            ->assertViewHas('savedRuns', fn ($runs) => $runs->has($project->id.'-any-moisture'))
+            ->assertViewHas('savedRuns', fn ($runs) => $runs->has($project->id.'-any-moisture')
+                && data_get($runs->get($project->id.'-any-moisture'), 'observations.0.wet_container') === 1000)
             ->assertSee('Hasil Rata-rata')
+            ->assertSee('Benda uji sebelum oven')
+            ->assertSee('(D − E) / E × 100')
+            ->assertSee('B + D − C')
             ->assertSee('Otomatis dari total massa tertahan.');
+
+        $this->actingAs($user)->get(route('aggregate-tests.create', ['fine', 'moisture']))
+            ->assertOk()
+            ->assertViewHas('savedRuns', fn ($runs) => $runs->has($project->id.'-any')
+                && data_get($runs->get($project->id.'-any'), 'observations.0.dry_container') === 950);
     }
 }

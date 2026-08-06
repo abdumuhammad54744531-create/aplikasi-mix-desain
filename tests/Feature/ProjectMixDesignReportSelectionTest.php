@@ -12,28 +12,18 @@ class ProjectMixDesignReportSelectionTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_project_requires_at_least_one_mix_design_report_choice(): void
+    public function test_simplified_project_form_generates_number_and_enables_both_report_types(): void
     {
         $user = User::factory()->create(['username' => 'teknisi-pilihan', 'role' => 'teknisi', 'access_level' => 'edit']);
 
         $this->actingAs($user)->post(route('projects.store'), [
-            'number' => 'PRJ-PILIHAN-001',
             'name' => 'Proyek Pilihan Laporan',
-            'status' => 'aktif',
-        ])->assertSessionHasErrors('report_mix_design');
-
-        $this->actingAs($user)->post(route('projects.store'), [
-            'number' => 'PRJ-PILIHAN-001',
-            'name' => 'Proyek Pilihan Laporan',
-            'status' => 'aktif',
-            'report_include_mix_design_2012' => '1',
         ])->assertSessionDoesntHaveErrors();
 
-        $this->assertDatabaseHas('projects', [
-            'number' => 'PRJ-PILIHAN-001',
-            'report_include_mix_design_2012' => true,
-            'report_include_mix_design_2012_combined' => false,
-        ]);
+        $project=Project::sole();
+        $this->assertStringStartsWith('PRJ-', $project->number);
+        $this->assertTrue($project->report_include_mix_design_2012);
+        $this->assertTrue($project->report_include_mix_design_2012_combined);
     }
 
     public function test_report_only_contains_mix_design_types_selected_on_project(): void

@@ -33,6 +33,7 @@ Route::middleware('auth')->group(function(){
     Route::get('/aggregate-tests/{aggregate}',[AggregateTestController::class,'menu'])->name('aggregate-tests.menu');
     Route::get('/aggregate-worksheet/{aggregate}',[AggregateTestController::class,'worksheet'])->name('aggregate-tests.worksheet');
     Route::post('/aggregate-worksheet/{aggregate}',[AggregateTestController::class,'storeWorksheet'])->middleware('edit.access')->name('aggregate-tests.worksheet.store');
+    Route::delete('/projects/{project}/aggregate-tests/{run}/observations/{observation}',[AggregateTestController::class,'destroyObservation'])->middleware('edit.access')->name('aggregate-tests.observations.destroy');
     Route::get('/aggregate-tests/{aggregate}/{test}',[AggregateTestController::class,'create'])->name('aggregate-tests.create');
     Route::post('/aggregate-tests/{aggregate}/{test}',[AggregateTestController::class,'store'])->middleware('edit.access')->name('aggregate-tests.store');
     Route::get('/material-results',[MaterialResultController::class,'index'])->name('material-results.index');

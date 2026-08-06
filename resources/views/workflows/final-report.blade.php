@@ -66,10 +66,10 @@ $cementSource=$materialSources->firstWhere('type','cement')??$materialSources->f
 $waterSource=$materialSources->firstWhere('type','water')??$materialSources->firstWhere('type','air');
 $runLabels=['moisture'=>'Pemeriksaan Kadar Air','silt'=>'Pemeriksaan Kadar Lumpur/Lolos No. 200','specific-gravity'=>'Pemeriksaan Berat Jenis dan Penyerapan','bulk-density'=>'Pemeriksaan Berat Isi','sieve'=>'Analisis Saringan','abrasion'=>'Keausan Agregat dengan Mesin Los Angeles'];
 $sieveInfo=[
- 'fine'=>[['No.4',4.75,'r475'],['No.8',2.36,'r236'],['No.16',1.18,'r118'],['No.30',.60,'r060'],['No.50',.30,'r030'],['No.100',.15,'r015'],['Wadah dasar',0,'pan']],
+ 'fine'=>[['3/8 in',9.5,'r095'],['No.4',4.75,'r475'],['No.8',2.36,'r236'],['No.16',1.18,'r118'],['No.30',.60,'r060'],['No.50',.30,'r030'],['No.100',.15,'r015'],['Wadah dasar',0,'pan']],
  'coarse'=>[['3 in',75,'r750'],['1½ in',37.5,'r375'],['¾ in',19,'r190'],['⅜ in',9.5,'r095'],['No.4',4.75,'r475'],['Wadah dasar',0,'pan']]
 ];
-$fineLimits=['r475'=>[[90,100],[90,100],[90,100],[95,100]],'r236'=>[[60,95],[75,100],[85,100],[95,100]],'r118'=>[[30,70],[55,90],[75,100],[90,100]],'r060'=>[[15,34],[35,59],[60,79],[80,100]],'r030'=>[[5,20],[8,30],[12,40],[15,50]],'r015'=>[[0,10],[0,10],[0,10],[0,15]]];
+$fineLimits=['r095'=>[[100,100],[100,100],[100,100],[100,100]],'r475'=>[[90,100],[90,100],[90,100],[95,100]],'r236'=>[[60,95],[75,100],[85,100],[95,100]],'r118'=>[[30,70],[55,90],[75,100],[90,100]],'r060'=>[[15,34],[35,59],[60,79],[80,100]],'r030'=>[[5,20],[8,30],[12,40],[15,50]],'r015'=>[[0,10],[0,10],[0,10],[0,15]]];
 $coarseLimits=['r750'=>[[null,null],[null,null],[100,100]],'r375'=>[[null,null],[100,100],[95,100]],'r190'=>[[100,100],[95,100],[35,70]],'r095'=>[[50,85],[30,60],[10,40]],'r475'=>[[0,10],[0,10],[0,5]]];
 $sieveRows=function($run,$kind)use($sieveInfo){
  $obs=$run?->observations[0]??[];$sample=(float)($obs['sample_mass']??0);

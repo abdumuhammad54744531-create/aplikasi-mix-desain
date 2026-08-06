@@ -5,21 +5,24 @@ use App\Services\AuditService;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 class WorkflowController extends Controller {
  public function index(Request $r,string $type){$c=$this->config($type);$projects=Project::where('status','aktif')->when($r->project,fn($q)=>$q->orWhere('id',$r->project))->get();$mixDesigns=[];
   if(in_array($type,['fresh-concrete','compressive-strength']))$mixDesigns=LaboratoryWorkflow::whereIn('type',['mix-design-2012','mix-design-2012-combined'])->latest()->get()->unique('project_id')->mapWithKeys(function($mix){$i=$mix->input_data;$o=$mix->result_data;return [$mix->project_id=>['number'=>$mix->number,'target_fc'=>$i['fc']??null,'target_slump'=>$i['slump_design']??null,'theoretical_density'=>$o['total_fresh_mass']??($i['fresh_density']??null),'batch_mass'=>($o['trial_cement']??0)+($o['trial_fine']??0)+($o['trial_coarse']??0)+($o['trial_water']??0),'design_volume'=>isset($i['trial_volume_liter'])?$i['trial_volume_liter']/1000:null]];});
-  return view('workflows.index',['type'=>$type,'config'=>$c,'selectedProject'=>$r->project,'projects'=>$projects,'mixDesigns'=>$mixDesigns,'records'=>LaboratoryWorkflow::with('project')->where('type',$type)->latest()->get()]);}
+  $records=LaboratoryWorkflow::with('project')->where('type',$type)->latest()->get();$savedRecords=$records->unique('project_id')->mapWithKeys(fn($record)=>[$record->project_id=>['id'=>$record->id,'number'=>$record->number,'work_date'=>$record->work_date?->format('Y-m-d'),'input_data'=>$record->input_data,'notes'=>$record->notes]]);
+  return view('workflows.index',['type'=>$type,'config'=>$c,'selectedProject'=>$r->project,'projects'=>$projects,'mixDesigns'=>$mixDesigns,'records'=>$records,'savedRecords'=>$savedRecords]);}
  public function store(Request $r,string $type){$c=$this->config($type);
   if($type==='compressive-strength')return $this->storeCompressionBatch($r,$c);
-  $rules=['project_id'=>'required|exists:projects,id','work_date'=>'required|date','notes'=>'nullable'];foreach($c['fields'] as $f)$rules['data.'.$f[0]]='required|numeric|min:0';$d=$r->validate($rules);
+  $rules=['workflow_id'=>'nullable|integer','project_id'=>'required|exists:projects,id','work_date'=>'required|date','notes'=>'nullable'];foreach($c['fields'] as $f)$rules['data.'.$f[0]]='required|numeric|min:0';$d=$r->validate($rules);
   try{$result=$this->calculate($type,array_map('floatval',$d['data']));}catch(InvalidArgumentException $e){return back()->withInput()->withErrors(['data'=>$e->getMessage()]);}
-  $record=LaboratoryWorkflow::create(['project_id'=>$d['project_id'],'type'=>$type,'number'=>strtoupper(substr($type,0,3)).'-'.now()->format('ymdHis'),'work_date'=>$d['work_date'],'input_data'=>$d['data'],'result_data'=>$result,'notes'=>$d['notes']??null,'created_by'=>auth()->id()]);
+  $id=$d['workflow_id']??null;unset($d['workflow_id']);$attributes=['project_id'=>$d['project_id'],'type'=>$type,'work_date'=>$d['work_date'],'input_data'=>$d['data'],'result_data'=>$result,'notes'=>$d['notes']??null];
+  $record=DB::transaction(function()use($id,$d,$type,$attributes){if($id){$record=LaboratoryWorkflow::whereKey($id)->where('project_id',$d['project_id'])->where('type',$type)->lockForUpdate()->firstOrFail();$record->update($attributes);return $record;}return LaboratoryWorkflow::create([...$attributes,'number'=>strtoupper(substr($type,0,3)).'-'.now()->format('ymdHis'),'created_by'=>auth()->id()]);});
   AuditService::record($c['title'],'hitung dan simpan',$record);return back()->with('success',$c['title'].' berhasil disimpan.');
  }
  private function storeCompressionBatch(Request $r,array $c){
-  $d=$r->validate(['project_id'=>'required|exists:projects,id','work_date'=>'required|date','notes'=>'nullable','data.rows'=>'required|array|min:1',
+  $d=$r->validate(['workflow_id'=>'nullable|integer','project_id'=>'required|exists:projects,id','work_date'=>'required|date','notes'=>'nullable','data.rows'=>'required|array|min:1',
    'data.rows.*.cast_date'=>'required|date','data.rows.*.test_date'=>'required|date|after_or_equal:data.rows.*.cast_date',
    'data.rows.*.diameter'=>'required|numeric|min:1','data.rows.*.height'=>'required|numeric|min:1','data.rows.*.weight'=>'required|numeric|min:0.001','data.rows.*.load_kn'=>'required|numeric|min:0.001']);
   $mix=LaboratoryWorkflow::where('project_id',$d['project_id'])->whereIn('type',['mix-design-2012','mix-design-2012-combined'])->latest()->first();
@@ -28,7 +31,8 @@ class WorkflowController extends Controller {
   foreach($d['data']['rows'] as $i=>$row){$age=\Carbon\Carbon::parse($row['cast_date'])->diffInDays(\Carbon\Carbon::parse($row['test_date']));$factor=$this->ageFactor($age);$area=pi()*(float)$row['diameter']**2/4;$actual=(float)$row['load_kn']*1000/$area;$estimate=$actual/$factor;$estimated[]=$estimate;$details[]=[...$row,'number'=>$i+1,'age_days'=>$age,'area_mm2'=>$area,'actual_mpa'=>$actual,'age_factor'=>$factor,'estimated_28_mpa'=>$estimate,'estimated_k_kgcm2'=>$estimate*10.19716213];}
   $count=count($estimated);$mean=array_sum($estimated)/$count;$sd=0;if($count>1){foreach($estimated as $x)$sd+=($x-$mean)**2;$sd=sqrt($sd/($count-1));}$characteristic=$mean-1.64*$sd;
   $result=['Jumlah benda uji'=>$count,'Sasaran f\'c (MPa)'=>$target,'Rata-rata perkiraan 28 hari (MPa)'=>$mean,'Standar deviasi sampel (MPa)'=>$sd,'Kuat tekan karakteristik (MPa)'=>$characteristic,'Mutu karakteristik (kg/cm²)'=>$characteristic*10.19716213,'Status'=>$characteristic>=$target?'Memenuhi':'Tidak memenuhi','detail_rows'=>$details];
-  $record=LaboratoryWorkflow::create(['project_id'=>$d['project_id'],'type'=>'compressive-strength','number'=>'COM-'.now()->format('ymdHis'),'work_date'=>$d['work_date'],'input_data'=>['target_fc'=>$target,'mix_design_number'=>$mix->number,'rows'=>$d['data']['rows']],'result_data'=>$result,'notes'=>$d['notes']??null,'created_by'=>auth()->id()]);
+  $id=$d['workflow_id']??null;$attributes=['project_id'=>$d['project_id'],'type'=>'compressive-strength','work_date'=>$d['work_date'],'input_data'=>['target_fc'=>$target,'mix_design_number'=>$mix->number,'rows'=>$d['data']['rows']],'result_data'=>$result,'notes'=>$d['notes']??null];
+  $record=DB::transaction(function()use($id,$d,$attributes){if($id){$record=LaboratoryWorkflow::whereKey($id)->where('project_id',$d['project_id'])->where('type','compressive-strength')->lockForUpdate()->firstOrFail();$record->update($attributes);return $record;}return LaboratoryWorkflow::create([...$attributes,'number'=>'COM-'.now()->format('ymdHis'),'created_by'=>auth()->id()]);});
   AuditService::record($c['title'],'hitung paket benda uji dan simpan',$record);return back()->with('success','Pengujian kuat tekan seluruh benda uji berhasil dihitung dan disimpan.');
  }
  private function ageFactor(int $age):float{$ages=[3,7,14,21,28,90,365];$factors=[.40,.65,.88,.95,1,1.20,1.35];if($age<=$ages[0])return $factors[0];if($age>=$ages[count($ages)-1])return $factors[count($factors)-1];for($i=0;$i<count($ages)-1;$i++)if($age>=$ages[$i]&&$age<=$ages[$i+1])return $factors[$i]+($age-$ages[$i])/($ages[$i+1]-$ages[$i])*($factors[$i+1]-$factors[$i]);return 1;}

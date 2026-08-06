@@ -20,9 +20,13 @@ class AggregateTestCalculatorTest extends TestCase {
  }
  public function test_massa_awal_saringan_sama_dengan_total_massa_tertahan():void {
   $r=(new AggregateTestCalculator)->calculate('fine','sieve',[[
-   'sample_mass'=>1000,'r475'=>50,'r236'=>100,'r118'=>150,'r060'=>200,'r030'=>200,'r015'=>200,'pan'=>100,
+   'sample_mass'=>1000,'r095'=>0,'r475'=>50,'r236'=>100,'r118'=>150,'r060'=>200,'r030'=>200,'r015'=>200,'pan'=>100,
   ]]);
   $this->assertSame(1000.0,$r['averages']['mass_total']);
   $this->assertSame(0.0,$r['averages']['mass_difference']);
+ }
+ public function test_observasi_belum_lengkap_dapat_disimpan_tanpa_dihitung():void {
+  $r=(new AggregateTestCalculator)->calculate('fine','moisture',[['container'=>10,'wet_container'=>null,'dry_container'=>null]]);
+  $this->assertFalse($r['valid']);$this->assertSame([1],$r['incomplete_observations']);$this->assertSame([],$r['averages']);
  }
 }

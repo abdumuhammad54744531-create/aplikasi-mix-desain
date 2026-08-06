@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\{CementTest,CoarseAggregateTest,FineAggregateTest,MaterialSource,Project,WaterTest};
 use App\Services\AuditService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class MaterialTestController extends Controller
@@ -29,10 +30,14 @@ class MaterialTestController extends Controller
     {
         abort_unless(isset($this->types[$type]), 404);
         [$label,, $materialType] = $this->types[$type];
+        $model=$this->types[$type][1];$savedTests=collect();
+        foreach($model::latest()->get() as $record){$payload=$record->toArray();$payload['tested_at']=$record->tested_at?->format('Y-m-d');$payload['received_at']=$record->received_at?->format('Y-m-d');
+            $exact=$record->project_id.'-'.($record->material_source_id??0);$fallback=$record->project_id.'-any';if(!$savedTests->has($exact))$savedTests->put($exact,$payload);if(!$savedTests->has($fallback))$savedTests->put($fallback,$payload);}
         return view('material-tests.form', [
             'type' => $type, 'label' => $label, 'fields' => $this->fields($type),
             'projects' => Project::where('status','aktif')->orderBy('name')->get(),
             'materials' => MaterialSource::whereIn('type',$type==='coarse-aggregate'?['Kerikil','Batu pecah']:[$materialType])->orderBy('name')->get(),
+            'savedTests'=>$savedTests,
         ]);
     }
 
@@ -41,7 +46,7 @@ class MaterialTestController extends Controller
         abort_unless(isset($this->types[$type]), 404);
         [$label, $model] = $this->types[$type];
         $rules = [
-            'project_id'=>'required|exists:projects,id', 'material_source_id'=>'nullable|exists:material_sources,id',
+            'test_id'=>'nullable|integer','project_id'=>'required|exists:projects,id', 'material_source_id'=>'nullable|exists:material_sources,id',
             'sample_number'=>'required|max:100', 'received_at'=>'nullable|date', 'tested_at'=>'required|date',
             'technician'=>'required|max:255', 'notes'=>'nullable|max:5000',
             'source_name'=>'nullable|max:255','source_quarry'=>'nullable|max:255','source_supplier'=>'nullable|max:255',
@@ -53,10 +58,11 @@ class MaterialTestController extends Controller
         $data = $request->validate($rules);
         $sourceData=['name'=>$data['source_name']??null,'quarry'=>$data['source_quarry']??null,'supplier'=>$data['source_supplier']??null,'sample_number'=>$data['source_sample_number']??null,'condition'=>$data['source_condition']??null];
         unset($data['source_name'],$data['source_quarry'],$data['source_supplier'],$data['source_sample_number'],$data['source_condition']);
-        if(!empty($data['material_source_id'])){$source=MaterialSource::findOrFail($data['material_source_id']);abort_unless($source->project_id===null||(int)$source->project_id===(int)$data['project_id'],422);$before=$source->toArray();$source->update([...$sourceData,'updated_by'=>auth()->id()]);AuditService::record('Sumber Material','ubah dari pemeriksaan',$source,$before);}
-        $data['test_number'] = strtoupper(substr(str_replace('-','',$type),0,3)).'-'.now()->format('ymd').'-'.str_pad((string)($model::withTrashed()->count()+1),3,'0',STR_PAD_LEFT);
-        $data['created_by']=$data['updated_by']=auth()->id();
-        $test=$model::create($data); AuditService::record('Pemeriksaan '.$label,'simpan draf',$test);
+        $test=DB::transaction(function()use($data,$sourceData,$model,$type,$label){$testId=$data['test_id']??null;unset($data['test_id']);
+            if(!empty($data['material_source_id'])){$source=MaterialSource::findOrFail($data['material_source_id']);abort_unless($source->project_id===null||(int)$source->project_id===(int)$data['project_id'],422);$before=$source->toArray();$source->update([...$sourceData,'updated_by'=>auth()->id()]);AuditService::record('Sumber Material','ubah dari pemeriksaan',$source,$before);}
+            $data['updated_by']=auth()->id();if($testId){$test=$model::whereKey($testId)->where('project_id',$data['project_id'])->firstOrFail();$before=$test->toArray();$test->update($data);AuditService::record('Pemeriksaan '.$label,'ubah',$test,$before);return $test;}
+            $data['test_number']=strtoupper(substr(str_replace('-','',$type),0,3)).'-'.now()->format('ymd').'-'.str_pad((string)($model::withTrashed()->count()+1),3,'0',STR_PAD_LEFT);$data['created_by']=auth()->id();return $model::create($data);
+        }); AuditService::record('Pemeriksaan '.$label,'simpan draf',$test);
         return redirect()->route('material-tests.index')->with('success',"Pemeriksaan {$label} berhasil disimpan sebagai draf.");
     }
 
