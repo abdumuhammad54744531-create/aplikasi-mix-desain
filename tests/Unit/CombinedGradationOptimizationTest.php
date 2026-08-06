@@ -77,4 +77,26 @@ class CombinedGradationOptimizationTest extends TestCase
         $this->assertCount(8, $size20['rows']);
         $this->assertCount(9, $size40['rows']);
     }
+
+    public function test_saved_optimum_percentage_is_preserved_as_project_snapshot(): void
+    {
+        $fine = new AggregateTestRun(['results' => ['observations' => [[
+            'sieve_cumulative' => ['r475'=>0,'r236'=>0,'r118'=>20.12,'r060'=>78.24,'r030'=>98.95,'r015'=>100],
+        ]]]]);
+        $coarse = new AggregateTestRun(['results' => ['observations' => [[
+            'sieve_cumulative' => ['r375'=>0,'r190'=>0,'r095'=>85.76,'r475'=>100],
+        ]]]]);
+        $method = new ReflectionMethod(MixDesign2012Controller::class, 'optimizeCombinedGradation');
+
+        $result = $method->invoke(new MixDesign2012Controller(), $fine, $coarse, 20, 5, 39.1);
+
+        $this->assertSame(39.1, $result['fine_percent']);
+        $this->assertSame(60.9, $result['coarse_percent']);
+        $this->assertGreaterThanOrEqual(0, $result['deviation']);
+        $this->assertEqualsWithDelta(
+            $result['rows']['r475']['combined'],
+            $result['rows']['r475']['fine_weighted'] + $result['rows']['r475']['coarse_weighted'],
+            0.000001
+        );
+    }
 }

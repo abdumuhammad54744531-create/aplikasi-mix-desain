@@ -43,4 +43,33 @@ class CompleteJmdReportDemoTest extends TestCase
         $this->get(route('public.download', $project->verification_code))
             ->assertOk()->assertHeader('content-type', 'application/pdf');
     }
+
+    public function test_saved_combined_gradation_snapshot_is_preserved_when_project_is_reopened(): void
+    {
+        $user = User::factory()->create(['username' => 'combined-editor', 'role' => 'administrator', 'access_level' => 'edit']);
+        $this->seed(CompleteJmdReportDemoSeeder::class);
+        $project = Project::where('number', 'DEMO-JMD-LENGKAP-001')->sole();
+        $project->update(['locked_at' => null, 'status' => 'aktif']);
+        $mix = LaboratoryWorkflow::where('project_id', $project->id)->where('type', 'mix-design-2012-combined')->sole();
+        $input = $mix->input_data;
+        $input['combined_fine_percent'] = 39.1;
+        $input['combined_coarse_percent'] = 60.9;
+
+        $this->actingAs($user)->post(route('mix-design-2012-combined.store'), [
+            'workflow_id' => $mix->id,
+            'project_id' => $project->id,
+            'work_date' => $mix->work_date->format('Y-m-d'),
+            'data' => $input,
+            'notes' => 'Snapshot optimum 39,1% pasir dan 60,9% kerikil.',
+        ])->assertSessionDoesntHaveErrors();
+
+        $mix->refresh();
+        $this->assertSame(39.1, $mix->input_data['combined_fine_percent']);
+        $this->assertSame(60.9, $mix->input_data['combined_coarse_percent']);
+        $this->assertSame(39.1, $mix->result_data['combined_fine_percent']);
+        $this->assertSame(60.9, $mix->result_data['combined_coarse_percent']);
+        $this->actingAs($user)->get(route('mix-design-2012-combined.create', ['project' => $project->id]))
+            ->assertOk()
+            ->assertSee('value="39.1"', false);
+    }
 }
