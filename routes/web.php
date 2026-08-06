@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\{AccountController,ArchiveController,AuthController,DashboardController,LaboratoryWorkRequestController,ProjectController,MaterialSourceController,MixDesignController,ReferenceController,MaterialTestController,AggregateTestController,MaterialResultController,WorkflowController,MixDesign2012Controller,ReportSettingController,TestDocumentationController};
+use App\Http\Controllers\Jmd\MaterialTestController as JmdMaterialTestController;
 Route::redirect('/','/dashboard');
 Route::get('/verify/{code}',[WorkflowController::class,'publicVerification'])->name('public.verify');
 Route::get('/verify/{code}/signatory/{signature}',[WorkflowController::class,'publicSignerVerification'])->name('public.signer');
@@ -30,6 +31,17 @@ Route::middleware('auth')->group(function(){
     Route::get('/material-tests',[MaterialTestController::class,'index'])->name('material-tests.index');
     Route::get('/material-tests/{type}',[MaterialTestController::class,'create'])->name('material-tests.create');
     Route::post('/material-tests/{type}',[MaterialTestController::class,'store'])->middleware('edit.access')->name('material-tests.store');
+    Route::get('/jmd/material-tests',[JmdMaterialTestController::class,'projects'])->name('jmd.material-tests.projects');
+    Route::get('/jmd/projects/{project}/material-tests',[JmdMaterialTestController::class,'index'])->name('jmd.material-tests.index');
+    Route::get('/jmd/projects/{project}/material-tests/{module}',[JmdMaterialTestController::class,'form'])->name('jmd.material-tests.form');
+    Route::post('/jmd/projects/{project}/material-tests/moisture',[JmdMaterialTestController::class,'storeMoisture'])->middleware('edit.access')->name('jmd.material-tests.moisture.store');
+    Route::post('/jmd/projects/{project}/material-tests/silt',[JmdMaterialTestController::class,'storeSilt'])->middleware('edit.access')->name('jmd.material-tests.silt.store');
+    Route::post('/jmd/projects/{project}/material-tests/fine-specific-gravity',[JmdMaterialTestController::class,'storeFineSpecificGravity'])->middleware('edit.access')->name('jmd.material-tests.fine-specific-gravity.store');
+    Route::post('/jmd/projects/{project}/material-tests/coarse-specific-gravity',[JmdMaterialTestController::class,'storeCoarseSpecificGravity'])->middleware('edit.access')->name('jmd.material-tests.coarse-specific-gravity.store');
+    Route::post('/jmd/projects/{project}/material-tests/bulk-density',[JmdMaterialTestController::class,'storeBulkDensity'])->middleware('edit.access')->name('jmd.material-tests.bulk-density.store');
+    Route::post('/jmd/projects/{project}/material-tests/cement-specific-gravity',[JmdMaterialTestController::class,'storeCementSpecificGravity'])->middleware('edit.access')->name('jmd.material-tests.cement-specific-gravity.store');
+    Route::post('/jmd/projects/{project}/material-tests/sieve',[JmdMaterialTestController::class,'storeSieve'])->middleware('edit.access')->name('jmd.material-tests.sieve.store');
+    Route::post('/jmd/projects/{project}/material-tests/abrasion',[JmdMaterialTestController::class,'storeAbrasion'])->middleware('edit.access')->name('jmd.material-tests.abrasion.store');
     Route::get('/aggregate-tests/{aggregate}',[AggregateTestController::class,'menu'])->name('aggregate-tests.menu');
     Route::get('/aggregate-worksheet/{aggregate}',[AggregateTestController::class,'worksheet'])->name('aggregate-tests.worksheet');
     Route::post('/aggregate-worksheet/{aggregate}',[AggregateTestController::class,'storeWorksheet'])->middleware('edit.access')->name('aggregate-tests.worksheet.store');

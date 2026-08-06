@@ -9,6 +9,14 @@ use Illuminate\Validation\Validator;
 
 abstract class JmdFormRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $project = $this->route('project');
+        if ($project instanceof Project) {
+            $this->merge(['project_id' => $project->getKey()]);
+        }
+    }
+
     public function authorize(): bool
     {
         $user = $this->user();
