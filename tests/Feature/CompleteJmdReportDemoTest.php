@@ -27,7 +27,8 @@ class CompleteJmdReportDemoTest extends TestCase
         $this->assertCount(11, $runs);
         $this->assertTrue($runs->every(fn ($run) => count($run->observations) === 2));
         $this->assertTrue($runs->every(fn ($run) => $run->status === 'disetujui'));
-        $this->assertSame(8, LaboratoryWorkflow::where('project_id', $project->id)->count());
+        $this->assertSame(9, LaboratoryWorkflow::where('project_id', $project->id)->count());
+        $this->assertTrue(LaboratoryWorkflow::where('project_id', $project->id)->where('type', 'mix-design-2012-combined')->exists());
         $this->assertSame(1, TestDocumentation::where('project_id', $project->id)->count());
         $this->assertSame(1, ReportApproval::where('project_id', $project->id)->where('status', 'valid')->count());
         $this->assertNotNull($project->document_hash);

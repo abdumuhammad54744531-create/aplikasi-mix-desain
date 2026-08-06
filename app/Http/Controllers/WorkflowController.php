@@ -40,7 +40,7 @@ class WorkflowController extends Controller {
   $projects=Project::orderByDesc('updated_at')->get()->map(function($project){$records=$this->projectReportRecords($project);$project->report_count=$records->count();$statuses=$records->pluck('status');$project->report_status=$statuses->contains('draft')?'draft':($statuses->contains('diperiksa')?'diperiksa':($statuses->isNotEmpty()?'disetujui':'belum ada'));return $project;});
   return view('workflows.reports',compact('projects'));
  }
- public function reportProject(Project $project){$records=$this->projectReportRecords($project);$statuses=$records->pluck('status');$reportStatus=$project->document_status==='ditolak'?'ditolak':($statuses->contains('draft')?'draft':($statuses->contains('diperiksa')?'diperiksa':($statuses->isNotEmpty()?'disetujui':'belum ada')));$approvals=$project->reportApprovals()->with('user')->latest('approved_at')->get();$availableMixTypes=LaboratoryWorkflow::where('project_id',$project->id)->whereIn('type',['mix-design-2012','mix-design-2012-combined'])->pluck('type')->unique();return view('workflows.report-project',compact('project','records','reportStatus','approvals','availableMixTypes'));}
+ public function reportProject(Project $project){$records=$this->projectReportRecords($project);$statuses=$records->pluck('status');$reportStatus=$project->document_status==='ditolak'?'ditolak':($statuses->contains('draft')?'draft':($statuses->contains('diperiksa')?'diperiksa':($statuses->isNotEmpty()?'disetujui':'belum ada')));$approvals=$project->reportApprovals()->with('user')->latest('approved_at')->get();$availableMixTypes=LaboratoryWorkflow::where('project_id',$project->id)->whereIn('type',['mix-design-2012','mix-design-2012-combined'])->pluck('type')->unique();$hasCombinedAnalysis=LaboratoryWorkflow::where('project_id',$project->id)->where('type','combined-aggregate')->exists();return view('workflows.report-project',compact('project','records','reportStatus','approvals','availableMixTypes','hasCombinedAnalysis'));}
  public function updateMixDesignSelection(Request $r,Project $project){
   abort_if($project->locked_at,422,'Laporan sudah dikunci. Buat revisi baru sebelum mengubah metode desain campuran.');
   $method=$r->validate(['report_mix_design_method'=>'required|in:mix-design-2012,mix-design-2012-combined,both'])['report_mix_design_method'];
@@ -81,7 +81,7 @@ class WorkflowController extends Controller {
   ]);
   $aggregateRuns=AggregateTestRun::where('project_id',$project->id)->orderBy('aggregate_type')->orderBy('tested_at')->get();
   $reportMixTypes=$project->includedMixDesignTypes();
-  $mixDesigns=LaboratoryWorkflow::where('project_id',$project->id)->whereIn('type',$reportMixTypes)->orderBy('work_date')->get();
+  $mixDesigns=LaboratoryWorkflow::where('project_id',$project->id)->whereIn('type',$reportMixTypes)->orderBy('updated_at')->orderBy('id')->get();
   $strengthTests=LaboratoryWorkflow::where('project_id',$project->id)->where('type','compressive-strength')->orderBy('work_date')->get();
   $materialSources=MaterialSource::where('project_id',$project->id)->orderBy('type')->orderBy('name')->get();
   $documents=TestDocumentation::where('project_id',$project->id)->orderBy('module')->orderBy('sort_order')->get()->groupBy('module');

@@ -84,7 +84,7 @@ class ProjectMixDesignReportSelectionTest extends TestCase
         $this->actingAs($user)->get(route('workflow.report.project', $project))
             ->assertOk()
             ->assertSee('Metode desain campuran yang dimasukkan ke laporan')
-            ->assertSee('Hasil tersedia');
+            ->assertSee('Hasil desain tersedia');
 
         $project->update(['locked_at' => now()]);
         $this->actingAs($user)->patch(route('workflow.report.mix-design-selection', $project), [
@@ -92,9 +92,29 @@ class ProjectMixDesignReportSelectionTest extends TestCase
         ])->assertStatus(423);
     }
 
-    private function createMix(Project $project, string $type, string $number): void
+    public function test_report_uses_the_most_recently_updated_mix_design_result(): void
     {
-        LaboratoryWorkflow::create([
+        $user = User::factory()->create(['username' => 'teknisi-versi', 'role' => 'teknisi', 'access_level' => 'edit']);
+        $project = Project::create([
+            'number' => 'PRJ-VERSI-001',
+            'name' => 'Proyek Versi Perhitungan',
+            'status' => 'aktif',
+            'report_include_mix_design_2012' => false,
+            'report_include_mix_design_2012_combined' => true,
+        ]);
+        $revised = $this->createMix($project, 'mix-design-2012-combined', 'MD-GABUNGAN-REVISI');
+        $this->createMix($project, 'mix-design-2012-combined', 'MD-GABUNGAN-LAMA');
+        $revised->update(['updated_at' => now()->addMinute()]);
+
+        $this->actingAs($user)->get(route('workflow.report.final', $project))
+            ->assertOk()
+            ->assertSee('MD-GABUNGAN-REVISI')
+            ->assertDontSee('MD-GABUNGAN-LAMA');
+    }
+
+    private function createMix(Project $project, string $type, string $number): LaboratoryWorkflow
+    {
+        return LaboratoryWorkflow::create([
             'project_id' => $project->id,
             'type' => $type,
             'number' => $number,
