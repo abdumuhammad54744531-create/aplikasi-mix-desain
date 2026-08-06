@@ -61,6 +61,37 @@ class ProjectMixDesignReportSelectionTest extends TestCase
             ->assertSee('MD-GABUNGAN-001');
     }
 
+    public function test_user_can_select_available_mix_design_method_for_unlocked_report(): void
+    {
+        $user = User::factory()->create(['username' => 'teknisi-metode', 'role' => 'teknisi', 'access_level' => 'edit']);
+        $project = Project::create([
+            'number' => 'PRJ-METODE-001',
+            'name' => 'Proyek Pilihan Metode',
+            'status' => 'aktif',
+            'report_include_mix_design_2012' => true,
+            'report_include_mix_design_2012_combined' => true,
+        ]);
+        $this->createMix($project, 'mix-design-2012', 'MD-STANDAR-002');
+        $this->createMix($project, 'mix-design-2012-combined', 'MD-GABUNGAN-002');
+
+        $this->actingAs($user)->patch(route('workflow.report.mix-design-selection', $project), [
+            'report_mix_design_method' => 'mix-design-2012-combined',
+        ])->assertSessionDoesntHaveErrors();
+
+        $project->refresh();
+        $this->assertFalse($project->report_include_mix_design_2012);
+        $this->assertTrue($project->report_include_mix_design_2012_combined);
+        $this->actingAs($user)->get(route('workflow.report.project', $project))
+            ->assertOk()
+            ->assertSee('Metode desain campuran yang dimasukkan ke laporan')
+            ->assertSee('Hasil tersedia');
+
+        $project->update(['locked_at' => now()]);
+        $this->actingAs($user)->patch(route('workflow.report.mix-design-selection', $project), [
+            'report_mix_design_method' => 'mix-design-2012',
+        ])->assertStatus(423);
+    }
+
     private function createMix(Project $project, string $type, string $number): void
     {
         LaboratoryWorkflow::create([

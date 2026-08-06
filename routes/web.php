@@ -64,6 +64,7 @@ Route::middleware('auth')->group(function(){
     Route::post('/workflow/{type}',[WorkflowController::class,'store'])->middleware('edit.access')->name('workflow.store');
     Route::get('/reports',[WorkflowController::class,'reports'])->name('workflow.reports');
     Route::get('/reports/{project}',[WorkflowController::class,'reportProject'])->name('workflow.report.project');
+    Route::patch('/reports/{project}/mix-design-selection',[WorkflowController::class,'updateMixDesignSelection'])->middleware('edit.access')->name('workflow.report.mix-design-selection');
     Route::patch('/reports/{project}/status',[WorkflowController::class,'updateReportStatus'])->middleware('edit.access')->name('workflow.report.status');
     Route::get('/reports/{project}/final',[WorkflowController::class,'finalReport'])->name('workflow.report.final');
     Route::get('/documentation',[TestDocumentationController::class,'index'])->name('documentation.index');
