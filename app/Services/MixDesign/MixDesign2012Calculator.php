@@ -23,11 +23,15 @@ final class MixDesign2012Calculator {
   }
   $fineFree=($v['fine_moisture']-$v['fine_absorption'])/100*$fineAbsolute;$coarseFree=($v['coarse_moisture']-$v['coarse_absorption'])/100*$coarse;
   $fineField=$fineAbsolute*(1+$v['fine_moisture']/100)/(1+$v['fine_absorption']/100);$coarseField=$coarse*(1+$v['coarse_moisture']/100)/(1+$v['coarse_absorption']/100);
-  $waterAdded=max(0,$v['water']-$fineFree-$coarseFree);$total=$cement+$fineField+$coarseField+$waterAdded;$trialFactor=($v['trial_volume_liter']??20)/1000*(1+($v['waste']??0)/100);
+  $waterAdded=max(0,$v['water']-$fineFree-$coarseFree);$total=$cement+$fineField+$coarseField+$waterAdded;
+  $hasCylinder=isset($v['trial_cylinder_diameter_mm'],$v['trial_cylinder_height_mm'],$v['trial_cylinder_count']);$singleCylinderVolume=null;
+  if($hasCylinder){$diameter=(float)$v['trial_cylinder_diameter_mm'];$height=(float)$v['trial_cylinder_height_mm'];$cylinderCount=(int)$v['trial_cylinder_count'];if($diameter<=0||$height<=0||$cylinderCount<1)throw new InvalidArgumentException('Diameter, tinggi, dan jumlah silinder harus lebih dari nol.');$singleCylinderVolume=pi()/4*($diameter/1000)**2*($height/1000)*1000;$trialVolume=$singleCylinderVolume*$cylinderCount;}else{$cylinderCount=null;$trialVolume=(float)($v['trial_volume_liter']??20);}
+  $trialBatchVolume=$trialVolume*(1+($v['waste']??0)/100);$trialFactor=$trialBatchVolume/1000;
   $result=['margin'=>$margin,'fcr'=>$fcr,'wc_ratio_calculated'=>$wc,'coarse_ratio'=>$coarseRatio,'cement'=>$cement,'aggregate_mass_available'=>$aggregateMassAvailable,'coarse_ssd'=>$coarse,'fine_mass_method'=>$fineMass,
    'fine_ssd'=>$fineAbsolute,'vol_water'=>$volWater,'vol_cement'=>$volCement,'vol_coarse'=>$volCoarse,'vol_fine'=>$volFine,'vol_air'=>$volAir,
    'fine_free_water'=>$fineFree,'coarse_free_water'=>$coarseFree,'fine_field'=>$fineField,'coarse_field'=>$coarseField,'water_added'=>$waterAdded,
    'total_fresh_mass'=>$total,'ratio_cement'=>1,'ratio_fine'=>$fineField/$cement,'ratio_coarse'=>$coarseField/$cement,'ratio_water'=>$waterAdded/$cement,
+   'trial_single_cylinder_volume_liter'=>$singleCylinderVolume,'trial_cylinder_count'=>$cylinderCount,'trial_volume_liter'=>$trialVolume,'trial_batch_volume_liter'=>$trialBatchVolume,
    'trial_cement'=>$cement*$trialFactor,'trial_fine'=>$fineField*$trialFactor,'trial_coarse'=>$coarseField*$trialFactor,'trial_water'=>$waterAdded*$trialFactor,
    'sacks_per_m3'=>$cement/50,'fine_per_sack'=>$fineField/($cement/50),'coarse_per_sack'=>$coarseField/($cement/50),'water_per_sack'=>$waterAdded/($cement/50)];
   if(($v['combined_mode']??0)>0)$result+=['combined_fine_percent'=>$v['combined_fine_percent'],'combined_coarse_percent'=>100-$v['combined_fine_percent'],'combined_total_percent'=>100,'combined_deviation'=>$v['combined_deviation']??null,'gradation_max_size'=>$v['gradation_max_size']??null,'gradation_curve'=>$v['gradation_curve']??null];

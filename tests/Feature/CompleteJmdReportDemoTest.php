@@ -39,6 +39,9 @@ class CompleteJmdReportDemoTest extends TestCase
             ->assertSee('Pembangunan Gedung Laboratorium Beton')
             ->assertSee('Observasi 2')
             ->assertSee('DEMO-COARSE-LOSANGELES')
+            ->assertSee('Komposisi Campuran Percobaan untuk Benda Uji Silinder')
+            ->assertSee('150,000 mm')
+            ->assertSee('300,000 mm')
             ->assertDontSee('Data pengujian belum tersedia pada proyek ini');
         $this->get(route('public.download', $project->verification_code))
             ->assertOk()->assertHeader('content-type', 'application/pdf');
@@ -68,6 +71,7 @@ class CompleteJmdReportDemoTest extends TestCase
         $this->assertSame(60.9, $mix->input_data['combined_coarse_percent']);
         $this->assertSame(39.1, $mix->result_data['combined_fine_percent']);
         $this->assertSame(60.9, $mix->result_data['combined_coarse_percent']);
+        $this->assertEqualsWithDelta(pi()/4*.15**2*.30*3*1000, $mix->input_data['trial_volume_liter'], .000001);
         $this->actingAs($user)->get(route('mix-design-2012-combined.create', ['project' => $project->id]))
             ->assertOk()
             ->assertSee('value="39.1"', false);

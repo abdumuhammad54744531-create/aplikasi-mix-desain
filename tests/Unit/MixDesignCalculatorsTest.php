@@ -46,4 +46,21 @@ class MixDesignCalculatorsTest extends TestCase {
         $this->assertEqualsWithDelta($r['coarse_ssd']/($input['coarse_sg']*1000),$r['vol_coarse'],.000001);
         $this->assertEqualsWithDelta($r['fine_mass_method']/($input['fine_sg']*1000),$r['vol_fine'],.000001);
     }
+    public function test_volume_trial_mix_dihitung_dari_dimensi_dan_jumlah_silinder():void {
+        $input=[
+            'cement_sg'=>3.15,'coarse_sg'=>2.67,'fine_sg'=>2.61,'fc'=>25,'sd'=>7.5,
+            'sd_additional'=>0,'deviation_factor'=>1.64,'water'=>193,'wc_ratio'=>.45,
+            'coarse_density'=>1560,'fine_fm'=>2.74,'fresh_density'=>2380,'max_size'=>25,
+            'air_content'=>1.5,'fine_moisture'=>5.75,'fine_absorption'=>2.35,
+            'coarse_moisture'=>2.4,'coarse_absorption'=>1.85,
+            'trial_cylinder_diameter_mm'=>150,'trial_cylinder_height_mm'=>300,'trial_cylinder_count'=>3,'waste'=>10,
+        ];
+        $result=(new MixDesign2012Calculator)->calculate($input);
+        $single=pi()/4*.15**2*.30*1000;
+
+        $this->assertEqualsWithDelta($single,$result['trial_single_cylinder_volume_liter'],.000001);
+        $this->assertEqualsWithDelta($single*3,$result['trial_volume_liter'],.000001);
+        $this->assertEqualsWithDelta($single*3*1.10,$result['trial_batch_volume_liter'],.000001);
+        $this->assertEqualsWithDelta($result['cement']*$result['trial_batch_volume_liter']/1000,$result['trial_cement'],.000001);
+    }
 }
