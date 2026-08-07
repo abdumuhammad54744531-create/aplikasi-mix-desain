@@ -43,7 +43,9 @@ class ProjectMixDesignReportSelectionTest extends TestCase
         $this->actingAs($user)->get(route('workflow.report.final', $project))
             ->assertOk()
             ->assertSee('MD-STANDAR-001')
-            ->assertDontSee('MD-GABUNGAN-001');
+            ->assertDontSee('MD-GABUNGAN-001')
+            ->assertSee('<td class="center mix-active">216</td>', false)
+            ->assertDontSee('<td class="center mix-active">202</td>', false);
 
         $project->update(['report_include_mix_design_2012_combined' => true]);
         $this->actingAs($user)->get(route('workflow.report.final', $project->fresh()))
@@ -125,7 +127,7 @@ class ProjectMixDesignReportSelectionTest extends TestCase
             'type' => $type,
             'number' => $number,
             'work_date' => now()->toDateString(),
-            'input_data' => ['fc' => 25, 'water' => 190, 'slump_design' => 100, 'max_size' => 20],
+            'input_data' => ['fc' => 25, 'water' => 216, 'slump_min' => 150, 'slump_max' => 175, 'slump_design' => 160, 'max_size' => 19, 'air_entrained' => 0],
             'result_data' => ['cement' => 400, 'fine_ssd' => 700, 'coarse_ssd' => 1000],
             'status' => 'disetujui',
         ]);

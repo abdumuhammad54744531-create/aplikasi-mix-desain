@@ -12,7 +12,7 @@ $slumpRows=[
  [4,'Perkerasan dan pelat lantai',75,25],[5,'Beton massa',50,25],
 ];
 $sizes=[9.5,12.7,19,25,37.5,50,75,150];
-$sizeIndex=array_search((float)($mi['max_size']??25),$sizes,true);if($sizeIndex===false)$sizeIndex=3;
+$sizeIndex=array_search((float)($mi['max_size']??25),$sizes);if($sizeIndex===false)$sizeIndex=3;
 $slump=(float)($mi['slump_design']??0);$waterRange=$slump<=50?0:($slump<=100?1:2);$airKey=(int)($mi['air_entrained']??0);
 $waterRows=[
  ['Tanpa udara','25-50',[207,199,190,179,166,154,130,113],0,0],['Tanpa udara','75-100',[228,216,205,193,181,169,145,124],0,1],['Tanpa udara','150-175',[243,228,216,202,190,178,160,124],0,2],
