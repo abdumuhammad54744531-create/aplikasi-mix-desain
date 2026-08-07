@@ -1,7 +1,7 @@
 <?php
 namespace App\Http\Controllers;
 use App\Models\{AggregateTestObservation,AggregateTestRun,MaterialSource,Project};
-use App\Services\{AggregateTestCalculator,AuditService};
+use App\Services\{AggregateTestCalculator,AggregateTestSummaryService,AuditService};
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 class AggregateTestController extends Controller {
@@ -17,19 +17,21 @@ class AggregateTestController extends Controller {
             'materials'=>MaterialSource::whereIn('type',$aggregate==='fine'?['Pasir']:['Kerikil','Batu pecah'])->get(),
             'savedRuns'=>$savedRuns]);
     }
-    public function storeWorksheet(Request $r,string $aggregate,AggregateTestCalculator $calculator){
+    public function storeWorksheet(Request $r,string $aggregate,AggregateTestCalculator $calculator,AggregateTestSummaryService $summaryService){
         abort_unless(in_array($aggregate,['fine','coarse']),404); $tests=$this->tests($aggregate);
         $data=$r->validate(['project_id'=>'required|exists:projects,id','material_source_id'=>'nullable|exists:material_sources,id',
             'sample_number'=>'required','tested_at'=>'required|date','technician'=>'required','runs'=>'required|array','notes'=>'nullable',
             'runs.*.observations'=>'required|array|min:1','runs.*.observations.*.id'=>'nullable|integer',
             'runs.*.observations.*.*'=>'nullable',
             'source_name'=>'nullable|max:255','source_quarry'=>'nullable|max:255','source_supplier'=>'nullable|max:255','source_sample_number'=>'nullable|max:255','source_condition'=>'nullable|max:255']);
-        $sourceData=['name'=>$data['source_name']??null,'quarry'=>$data['source_quarry']??null,'supplier'=>$data['source_supplier']??null,'sample_number'=>$data['source_sample_number']??null,'condition'=>$data['source_condition']??null];
+        $sourceData=array_filter(['name'=>$data['source_name']??null,'quarry'=>$data['source_quarry']??null,'supplier'=>$data['source_supplier']??null,'sample_number'=>$data['source_sample_number']??null,'condition'=>$data['source_condition']??null],fn($value)=>$value!==null);
         unset($data['source_name'],$data['source_quarry'],$data['source_supplier'],$data['source_sample_number'],$data['source_condition']);
         $sourceAudit=null;
-        try{$created=DB::transaction(function()use($data,$sourceData,$tests,$aggregate,$calculator,&$sourceAudit){
+        try{$created=DB::transaction(function()use($data,$sourceData,$tests,$aggregate,$calculator,$summaryService,&$sourceAudit){
             if(!empty($data['material_source_id'])){$source=MaterialSource::findOrFail($data['material_source_id']);abort_unless($source->project_id===null||(int)$source->project_id===(int)$data['project_id'],422);$before=$source->toArray();$source->update([...$sourceData,'updated_by'=>auth()->id()]);$sourceAudit=[$source,$before];}
-            $items=[];foreach($tests as $type=>$config){$obs=$data['runs'][$type]['observations']??[];$items[]=$this->persistRun($data,$aggregate,$type,$obs,$calculator,count($items));}return $items;
+            $items=[];foreach($tests as $type=>$config){$obs=$data['runs'][$type]['observations']??[];$items[]=$this->persistRun($data,$aggregate,$type,$obs,$calculator,count($items));}
+            $summaryService->sync((int)$data['project_id'],isset($data['material_source_id'])?(int)$data['material_source_id']:null,$aggregate);
+            return $items;
         });}catch(\InvalidArgumentException $e){return back()->withInput()->withErrors(['runs'=>$e->getMessage()]);}
         if($sourceAudit)AuditService::record('Sumber Material','ubah dari pemeriksaan agregat',$sourceAudit[0],$sourceAudit[1]);
         foreach($created as $run)AuditService::record('Paket Pengujian Agregat','hitung dan simpan',$run);
@@ -54,24 +56,25 @@ class AggregateTestController extends Controller {
             'materials'=>MaterialSource::whereIn('type',$aggregate==='fine'?['Pasir']:['Kerikil','Batu pecah'])->get(),
             'savedRuns'=>$savedRuns]);
     }
-    public function store(Request $r,string $aggregate,string $test,AggregateTestCalculator $calculator){
+    public function store(Request $r,string $aggregate,string $test,AggregateTestCalculator $calculator,AggregateTestSummaryService $summaryService){
         $tests=$this->tests($aggregate); abort_unless(isset($tests[$test]),404);
         $data=$r->validate(['project_id'=>'required|exists:projects,id','material_source_id'=>'nullable|exists:material_sources,id',
             'sample_number'=>'required','tested_at'=>'required|date','technician'=>'required','observations'=>'required|array|min:1','observations.*'=>'array',
             'observations.*.id'=>'nullable|integer','observations.*.*'=>'nullable','notes'=>'nullable']);
-        try{$run=DB::transaction(fn()=>$this->persistRun($data,$aggregate,$test,$data['observations'],$calculator));}catch(\InvalidArgumentException $e){return back()->withInput()->withErrors(['observations'=>$e->getMessage()]);}
+        try{$run=DB::transaction(function()use($data,$aggregate,$test,$calculator,$summaryService){$run=$this->persistRun($data,$aggregate,$test,$data['observations'],$calculator);$summaryService->sync((int)$data['project_id'],isset($data['material_source_id'])?(int)$data['material_source_id']:null,$aggregate);return $run;});}catch(\InvalidArgumentException $e){return back()->withInput()->withErrors(['observations'=>$e->getMessage()]);}
         AuditService::record('Pengujian '.$tests[$test]['label'],'hitung dan simpan',$run);
         return view('aggregate-tests.result',['run'=>$run,'config'=>$tests[$test]]);
     }
-    public function destroyObservation(Project $project,AggregateTestRun $run,AggregateTestObservation $observation,AggregateTestCalculator $calculator){
+    public function destroyObservation(Project $project,AggregateTestRun $run,AggregateTestObservation $observation,AggregateTestCalculator $calculator,AggregateTestSummaryService $summaryService){
         abort_unless($run->project_id===$project->id&&$observation->project_id===$project->id&&$observation->aggregate_test_run_id===$run->id,404);
         if($run->observationRecords()->count()<=1)return response()->json(['message'=>'Minimal satu observasi harus tetap tersedia.'],422);
-        DB::transaction(function()use($run,$observation,$calculator){
+        DB::transaction(function()use($run,$observation,$calculator,$summaryService){
             $observation->delete();
             $records=$run->observationRecords()->get();
             foreach($records as $index=>$record)$record->update(['observation_number'=>$index+1]);
             $plain=$records->map(fn($record)=>$record->data)->all();
             $run->update(['observations'=>$plain,'results'=>$calculator->calculate($run->aggregate_type,$run->test_type,$plain)]);
+            $summaryService->sync($run->project_id,$run->material_source_id,$run->aggregate_type);
         });
         AuditService::record('Observasi Pengujian Agregat','hapus',$run);
         return response()->json(['message'=>'Observasi berhasil dihapus.']);
@@ -90,6 +93,7 @@ class AggregateTestController extends Controller {
         foreach(array_values($observations) as $index=>$item){
             $id=$item['id']??null;unset($item['id'],$item['observation_number']);
             if($id){$record=AggregateTestObservation::whereKey($id)->where('aggregate_test_run_id',$run->id)->where('project_id',$project->id)->firstOrFail();$record->update(['observation_number'=>$index+1,'data'=>$item]);}
+            elseif($record=$run->observationRecords()->where('observation_number',$index+1)->first())$record->update(['data'=>$item]);
             else $run->observationRecords()->create(['project_id'=>$project->id,'observation_number'=>$index+1,'data'=>$item]);
         }
         $records=$run->observationRecords()->get();$plain=$records->map(fn($record)=>$record->data)->all();

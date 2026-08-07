@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\AggregateTestObservation;
 use App\Models\AggregateTestRun;
+use App\Models\CoarseAggregateTest;
+use App\Models\FineAggregateTest;
+use App\Models\MaterialSource;
 use App\Models\Project;
 use App\Models\User;
 use App\Models\WaterTest;
@@ -156,11 +159,111 @@ class AggregateObservationPersistenceTest extends TestCase
 
         $this->assertSame(5, AggregateTestRun::count());
         $this->assertSame(5, AggregateTestObservation::count());
+        $this->assertSame(1, FineAggregateTest::count());
         $this->assertTrue(AggregateTestRun::all()->every(fn ($run) => $run->results['valid'] === false));
 
         $this->get(route('aggregate-tests.worksheet', 'fine'))
             ->assertOk()
             ->assertViewHas('savedRuns', fn ($saved) => data_get($saved->get($this->project->id.'-any-moisture'), 'observations.0.container') === 10);
+    }
+
+    public function test_complete_worksheet_creates_the_summary_read_by_mix_design_for_each_material(): void
+    {
+        $source = MaterialSource::create([
+            'project_id' => $this->project->id,
+            'code' => 'PAS-OBS-01',
+            'type' => 'Pasir',
+            'name' => 'Pasir Sungai',
+            'sample_number' => 'S-PASIR-01',
+            'created_by' => $this->user->id,
+            'updated_by' => $this->user->id,
+        ]);
+
+        $payload = [
+            'project_id' => $this->project->id,
+            'material_source_id' => $source->id,
+            'sample_number' => 'S-PASIR-01',
+            'tested_at' => '2026-08-01',
+            'technician' => 'Teknisi Uji',
+            'runs' => [
+                'moisture' => ['observations' => [['container' => 10, 'wet_container' => 110, 'dry_container' => 100]]],
+                'silt' => ['observations' => [['dry_before' => 1000, 'dry_after' => 980]]],
+                'specific-gravity' => ['observations' => [['oven_dry' => 500, 'pyc_water' => 700, 'pyc_sample_water' => 1000, 'ssd' => 510]]],
+                'bulk-density' => ['observations' => [['container' => 1, 'full_container' => 16, 'volume' => 10000, 'specific_gravity' => 2.6]]],
+                'sieve' => ['observations' => [[
+                    'selected_zone' => '2', 'sample_mass' => 1000, 'r095' => 0, 'r475' => 50,
+                    'r236' => 100, 'r118' => 150, 'r060' => 200, 'r030' => 200, 'r015' => 200, 'pan' => 100,
+                ]]],
+            ],
+        ];
+
+        $this->actingAs($this->user)
+            ->post(route('aggregate-tests.worksheet.store', 'fine'), $payload)
+            ->assertRedirect(route('material-results.project', $this->project));
+
+        $summary = FineAggregateTest::sole();
+        $this->assertSame($source->id, $summary->material_source_id);
+        $this->assertEqualsWithDelta(2.4286, (float) $summary->specific_gravity_ssd, 0.0001);
+        $this->assertEqualsWithDelta(2.0, (float) $summary->absorption, 0.0001);
+        $this->assertEqualsWithDelta(11.1111, (float) $summary->field_moisture, 0.0001);
+        $this->assertEqualsWithDelta(1500, (float) $summary->compacted_bulk_density, 0.0001);
+        $this->assertEqualsWithDelta(2.6, (float) $summary->fineness_modulus, 0.0001);
+        $this->assertSame('Zona 2', $summary->gradation_zone);
+
+        $this->post(route('aggregate-tests.worksheet.store', 'fine'), $payload)->assertRedirect();
+        $this->assertSame(1, FineAggregateTest::count(), 'Menyimpan ulang material yang sama tidak boleh menggandakan ringkasan.');
+
+        $this->get(route('mix-design-2012.create', ['project' => $this->project->id]))
+            ->assertOk()
+            ->assertViewHas('fine', fn ($fine) => $fine?->id === $summary->id);
+
+        $this->get(route('material-tests.index'))
+            ->assertOk()
+            ->assertViewHas('cards', fn ($cards) => data_get($cards, 'fine-aggregate.count') === 1);
+    }
+
+    public function test_coarse_worksheet_syncs_nominal_size_and_results_to_mix_design_summary(): void
+    {
+        $source = MaterialSource::create([
+            'project_id' => $this->project->id,
+            'code' => 'KER-OBS-01',
+            'type' => 'Kerikil',
+            'name' => 'Kerikil Pecah',
+            'sample_number' => 'S-KERIKIL-01',
+            'created_by' => $this->user->id,
+            'updated_by' => $this->user->id,
+        ]);
+
+        $this->actingAs($this->user)->post(route('aggregate-tests.worksheet.store', 'coarse'), [
+            'project_id' => $this->project->id,
+            'material_source_id' => $source->id,
+            'sample_number' => 'S-KERIKIL-01',
+            'tested_at' => '2026-08-01',
+            'technician' => 'Teknisi Uji',
+            'runs' => [
+                'moisture' => ['observations' => [['container' => 10, 'wet_container' => 110, 'dry_container' => 100]]],
+                'silt' => ['observations' => [['dry_before' => 1000, 'dry_after' => 995]]],
+                'specific-gravity' => ['observations' => [['oven_dry' => 500, 'ssd' => 510, 'submerged' => 300]]],
+                'bulk-density' => ['observations' => [['container' => 1, 'full_container' => 17, 'volume' => 10000, 'specific_gravity' => 2.6]]],
+                'sieve' => ['observations' => [[
+                    'selected_zone' => '2', 'sample_mass' => 1000, 'r750' => 0, 'r375' => 0,
+                    'r190' => 50, 'r095' => 500, 'r475' => 400, 'pan' => 50,
+                ]]],
+                'los-angeles' => ['observations' => [['initial' => 5000, 'retained' => 4000]]],
+            ],
+        ])->assertRedirect(route('material-results.project', $this->project));
+
+        $summary = CoarseAggregateTest::sole();
+        $this->assertSame($source->id, $summary->material_source_id);
+        $this->assertEqualsWithDelta(19, (float) $summary->nominal_maximum_size, 0.0001);
+        $this->assertEqualsWithDelta(2.4286, (float) $summary->specific_gravity_ssd, 0.0001);
+        $this->assertEqualsWithDelta(2.0, (float) $summary->absorption, 0.0001);
+        $this->assertEqualsWithDelta(1600, (float) $summary->compacted_bulk_density, 0.0001);
+        $this->assertEqualsWithDelta(20, (float) $summary->abrasion, 0.0001);
+
+        $this->get(route('material-tests.index'))
+            ->assertOk()
+            ->assertViewHas('cards', fn ($cards) => data_get($cards, 'coarse-aggregate.count') === 1);
     }
 
     private function payload(array $observations): array
