@@ -76,4 +76,48 @@ class CompleteJmdReportDemoTest extends TestCase
             ->assertOk()
             ->assertSee('value="39.1"', false);
     }
+
+    public function test_manual_slump_limits_are_validated_saved_and_restored(): void
+    {
+        $user = User::factory()->create(['username' => 'slump-editor', 'role' => 'administrator', 'access_level' => 'edit']);
+        $this->seed(CompleteJmdReportDemoSeeder::class);
+        $project = Project::where('number', 'DEMO-JMD-LENGKAP-001')->sole();
+        $project->update(['locked_at' => null, 'status' => 'aktif']);
+        $mix = LaboratoryWorkflow::where('project_id', $project->id)->where('type', 'mix-design-2012')->sole();
+        $input = $mix->input_data;
+        $input['construction_type'] = 6;
+        $input['slump_min'] = 110;
+        $input['slump_max'] = 160;
+        $input['slump_design'] = 140;
+
+        $this->actingAs($user)->post(route('mix-design-2012.store'), [
+            'workflow_id' => $mix->id,
+            'project_id' => $project->id,
+            'work_date' => $mix->work_date->format('Y-m-d'),
+            'data' => $input,
+            'notes' => 'Batas slump kebutuhan khusus.',
+        ])->assertSessionDoesntHaveErrors();
+
+        $mix->refresh();
+        $this->assertSame(6, $mix->input_data['construction_type']);
+        $this->assertSame(110, $mix->input_data['slump_min']);
+        $this->assertSame(160, $mix->input_data['slump_max']);
+        $this->assertSame(140, $mix->input_data['slump_design']);
+
+        $this->actingAs($user)->get(route('mix-design-2012.create', ['project' => $project->id]))
+            ->assertOk()
+            ->assertSee('Lainnya / kebutuhan khusus')
+            ->assertSee('value="6" data-manual="1" checked', false)
+            ->assertSee('name="data[slump_min]" data-key="slump_min" value="110"', false)
+            ->assertSee('name="data[slump_max]" data-key="slump_max" value="160"', false);
+
+        $input['slump_design'] = 170;
+        $this->actingAs($user)->from(route('mix-design-2012.create', ['project' => $project->id]))
+            ->post(route('mix-design-2012.store'), [
+                'workflow_id' => $mix->id,
+                'project_id' => $project->id,
+                'work_date' => $mix->work_date->format('Y-m-d'),
+                'data' => $input,
+            ])->assertSessionHasErrors('data.slump_design');
+    }
 }
