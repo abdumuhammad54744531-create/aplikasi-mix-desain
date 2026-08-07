@@ -49,7 +49,13 @@ class ProjectMixDesignReportSelectionTest extends TestCase
         $this->actingAs($user)->get(route('workflow.report.final', $project->fresh()))
             ->assertOk()
             ->assertSee('MD-STANDAR-001')
-            ->assertSee('MD-GABUNGAN-001');
+            ->assertSee('MD-GABUNGAN-001')
+            ->assertSeeInOrder([
+                'KEKERASAN/KEAUSAN AGREGAT KASAR',
+                'LAMPIRAN PERHITUNGAN DESAIN CAMPURAN 2012',
+                'LAMPIRAN PERHITUNGAN DESAIN CAMPURAN 2012 (GRADASI GABUNGAN)',
+                'LAMPIRAN DOKUMENTASI',
+            ]);
 
         $project->update([
             'report_include_mix_design_2012' => false,

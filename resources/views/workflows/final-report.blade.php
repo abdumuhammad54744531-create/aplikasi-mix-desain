@@ -8,7 +8,7 @@
 *{box-sizing:border-box}body{margin:0;color:#111;background:#dfe5e7;font:{{$setting->font_size}}px "{{$setting->font_family}}",Arial,sans-serif;line-height:1.45}
 .toolbar{position:fixed;right:20px;top:15px;z-index:9}.toolbar button{background:#087c70;color:#fff;border:0;border-radius:6px;padding:10px 16px}
 .page{width:210mm;min-height:297mm;margin:18px auto;page-break-before:always;position:relative;padding:{{$setting->margin_top}}mm {{$setting->margin_right}}mm {{$setting->margin_bottom}}mm {{$setting->margin_left}}mm;background:#fff;box-shadow:0 5px 24px #1b303840}.page:first-of-type{page-break-before:auto}
-.header{text-align:center;border-bottom:3px double #111;padding:0 75px 7px;margin-bottom:13px;position:relative;min-height:22mm}
+.header{text-align:center;border-bottom:3px double #111;padding:0 75px 7px;margin-bottom:13px;position:relative;min-height:22mm;page-break-inside:avoid;page-break-after:avoid}
 .header-logo{position:absolute;top:0;height:19mm;object-fit:contain}.logo-position-left{left:0}.logo-position-center{left:50%;transform:translateX(-50%)}.logo-position-right{right:0}
 .header h2,.header h3{margin:1px}.header p{margin:2px}.footer{position:absolute;bottom:1mm;left:3mm;right:3mm;border-top:1px solid #888;padding-top:3px;color:#555;font-size:8px}
 .cover{display:flex;flex-direction:column;justify-content:center;text-align:center;page-break-before:auto!important}.cover h1{font-size:25px;line-height:1.35}.cover h2{font-size:18px}
@@ -21,6 +21,7 @@
 .photo{border:1px solid #183d62;padding:7px;margin:10px 0;text-align:center}.photo img{display:block;max-width:100%;height:100mm;object-fit:contain;margin:auto}
 .chart{width:100%;height:108mm;border:1px solid #aaa;margin:8px 0}.toc td:first-child{width:88%}.toc td:last-child{text-align:right}
 .legal-row{display:flex;gap:12px;justify-content:space-around;align-items:flex-start;margin-top:22px}.legal-card{width:31%;font-size:8px}.legal-card img{width:27mm;height:27mm;display:block;margin:5px auto}
+.mix-appendix-page{padding-top:5mm}.mix-sheet{border:1px solid #87939a;background:#fff;font-family:Arial,sans-serif;color:#24333a}.mix-sheet-head{text-align:center;border-bottom:2px solid #273b44;padding:7px}.mix-sheet-head h3{font-size:12px;margin:0}.mix-sheet-head p{font-size:7px;margin:1px 0}.mix-bar{background:#d9dcde;border-top:1px solid #73828a;border-bottom:1px solid #73828a;padding:4px 6px;font-size:8px;font-weight:bold}.mix-no{display:inline-block;background:#243f4c;color:#fff;border-radius:50%;width:15px;height:15px;line-height:15px;text-align:center;margin-right:5px}.mix-grid{width:100%;border-collapse:collapse;table-layout:fixed}.mix-grid td{border-right:1px solid #d7dcdf;border-bottom:1px solid #e0e4e6;padding:4px;vertical-align:top;height:13mm}.mix-label{display:block;color:#53656d;font-size:6.5px;font-weight:bold;margin-bottom:2px}.mix-input{display:block;border:1px solid #9ca8ad;background:#f0e9fa;padding:3px;font-size:8px;min-height:15px}.mix-result{display:block;border-left:3px solid #1b9a89;background:#eff7ef;color:#146b60;font-weight:bold;padding:3px;font-size:8px;min-height:15px}.mix-unit{color:#708087;font-size:6px}.mix-help{background:#fff9df;border-left:3px solid #e3b341;padding:4px;font-size:6.5px}.mix-formula{background:#eef3f5;border-top:1px solid #c7d1d5;padding:3px 6px;font-size:6px}.mix-table{width:100%;border-collapse:collapse;margin:4px 0;font-size:6.5px}.mix-table th,.mix-table td{border:1px solid #aab4b9;padding:2px;vertical-align:middle}.mix-table th{background:#d9dcde;text-align:center}.mix-table tr.selected td,.mix-table td.selected{background:#e4f4ef;font-weight:bold}.mix-summary{background:#102f3d;color:#fff;padding:5px;text-align:center}.mix-summary table{width:100%;border-collapse:collapse}.mix-summary td{width:25%;font-size:7px}.mix-summary strong{color:#66e0c7;font-size:10px}.mix-meta{width:100%;border-collapse:collapse}.mix-meta td{padding:3px 5px;font-size:7px;border-bottom:1px solid #d7dcdf}.mix-appendix-title{text-align:center;font-size:11px;margin:3px 0 5px}.mix-note{font-size:6.5px;color:#637780}.mix-composition th{background:#d9dcde}.mix-composition td{text-align:right}.mix-composition td:first-child{text-align:left}.mix-active{background:#bfe7db!important;color:#075f55;font-weight:bold}
 ol,ul{padding-left:22px}p.justify{text-align:justify}.nowrap{white-space:nowrap}
 @media screen{.footer{left:{{$setting->margin_left}}mm;right:{{$setting->margin_right}}mm;bottom:6mm}}
 @media screen and (max-width:850px){.page{width:calc(100% - 20px);min-height:auto;margin:10px;padding:20px 18px}.footer{position:static;margin-top:35px}.toolbar{right:14px;top:10px}}
@@ -133,7 +134,9 @@ $tocTitle=$tocMixType==='mix-design-2012-combined'?'Desain Campuran 2012 (Gradas
 @endforeach
 <tr><td>2.4 Hasil Pengujian Kuat Tekan</td><td>8</td></tr>
 <tr><td><b>BAB III PENUTUP</b></td><td>9</td></tr><tr><td>3.1 Kesimpulan</td><td>9</td></tr><tr><td>3.2 Saran</td><td>9</td></tr>
-<tr><td><b>LAMPIRAN HASIL PEMERIKSAAN MATERIAL</b></td><td>L-1</td></tr><tr><td>Grafik Gradasi Pasir dan Kerikil</td><td>L-9</td></tr><tr><td>Keausan Agregat Kasar</td><td>L-16</td></tr><tr><td>Dokumentasi</td><td>L-17</td></tr><tr><td>Dasar Teori dan Standar Acuan</td><td>L-18</td></tr>
+<tr><td><b>LAMPIRAN HASIL PEMERIKSAAN MATERIAL</b></td><td>L-1</td></tr><tr><td>Grafik Gradasi Pasir dan Kerikil</td><td>L-9</td></tr><tr><td>Keausan Agregat Kasar</td><td>L-16</td></tr>
+@foreach($reportMixTypes as $tocMixType)<tr><td>Lampiran Perhitungan {{$tocMixType==='mix-design-2012-combined'?'Desain Campuran 2012 (Gradasi Gabungan)':'Desain Campuran 2012'}}</td><td>L-{{17+($loop->iteration-1)*4}}</td></tr>@endforeach
+<tr><td>Dokumentasi</td><td>L-{{17+count($reportMixTypes)*4}}</td></tr><tr><td>Dasar Teori dan Standar Acuan</td><td>L-{{18+count($reportMixTypes)*4}}</td></tr>
 </table>{!!$footer()!!}</section>
 
 <section class="page">{!!$header()!!}<h2 class="section-title">BAB I<br>PENDAHULUAN</h2>
@@ -325,6 +328,13 @@ $abrasionKeys=collect($abrasionRun->observations??[])->flatMap(fn($o)=>array_key
 @foreach(($abrasionRun->results['averages']??[]) as $key=>$avg)<tr><th>{{$pretty($key)}} rata-rata</th><th colspan="{{max(1,count($abrasionRun->observations??[]))}}" class="right">{{$value($avg)}}</th></tr>@endforeach</table>
 <p><b>Kesimpulan:</b> Nilai keausan hasil pengujian harus dibandingkan dengan persyaratan spesifikasi teknis pekerjaan.</p>
 @else {!!$missing!!} @endif {!!$footer()!!}</section>
+
+@foreach($reportMixTypes as $appendixMixType)
+@php $appendixMix=$mixDesigns->where('type',$appendixMixType)->last(); @endphp
+@if($appendixMix)
+@include('workflows.partials.mix-design-calculation-appendix',['mix'=>$appendixMix,'combined'=>$appendixMixType==='mix-design-2012-combined'])
+@endif
+@endforeach
 
 @if($documents->isNotEmpty())
 @foreach($documents as $module=>$photos)@foreach($photos->chunk(2) as $chunk)
