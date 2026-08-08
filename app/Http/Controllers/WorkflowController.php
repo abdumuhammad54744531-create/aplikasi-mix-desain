@@ -1,13 +1,17 @@
 <?php
 namespace App\Http\Controllers;
 use App\Models\{AggregateTestRun,CementTest,CoarseAggregateTest,FineAggregateTest,LaboratoryProfile,LaboratoryWorkflow,MaterialSource,Project,ReportApproval,ReportSetting,TestDocumentation,WaterTest};
+use App\Models\Jmd\SlumpTest;
 use App\Services\AuditService;
+use App\Services\PdfFontService;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use setasign\Fpdi\Fpdi;
+use setasign\Fpdi\PdfParser\StreamReader;
 class WorkflowController extends Controller {
  public function index(Request $r,string $type){$c=$this->config($type);$projects=Project::where('status','aktif')->when($r->project,fn($q)=>$q->orWhere('id',$r->project))->get();$mixDesigns=[];
   if(in_array($type,['fresh-concrete','compressive-strength']))$mixDesigns=LaboratoryWorkflow::whereIn('type',['mix-design-2012','mix-design-2012-combined'])->latest()->get()->unique('project_id')->mapWithKeys(function($mix){$i=$mix->input_data;$o=$mix->result_data;$trialLiters=$o['trial_batch_volume_liter']??($i['trial_volume_liter']??null);return [$mix->project_id=>['number'=>$mix->number,'target_fc'=>$i['fc']??null,'target_slump'=>$i['slump_design']??null,'theoretical_density'=>$o['total_fresh_mass']??($i['fresh_density']??null),'batch_mass'=>($o['trial_cement']??0)+($o['trial_fine']??0)+($o['trial_coarse']??0)+($o['trial_water']??0),'design_volume'=>$trialLiters!==null?$trialLiters/1000:null]];});
@@ -67,12 +71,28 @@ class WorkflowController extends Controller {
  public function publicReport(string $code){$project=Project::withTrashed()->where('verification_code',$code)->whereNotNull('legalized_at')->firstOrFail();return $this->renderFinalReport($project,true);}
  public function publicDownload(string $code){
   $project=Project::withTrashed()->where('verification_code',$code)->whereNotNull('legalized_at')->firstOrFail();
-  $options=new \Dompdf\Options();$options->set('isRemoteEnabled',true);$options->set('chroot',public_path());$options->set('defaultMediaType','print');
-  $pdf=new \Dompdf\Dompdf($options);$pdf->loadHtml($this->renderFinalReport($project,true)->render(),'UTF-8');$pdf->setPaper('A4');$pdf->render();
+  $setting=ReportSetting::firstOrCreate([]);$pdfFamilies=collect([$setting->font_family])->merge(collect($setting->resolvedHeaderLines())->pluck('font'))->unique();
+  $renderPart=function(string $part,string $orientation)use($project,$pdfFamilies):string{
+   $pdf=PdfFontService::make($pdfFamilies);$pdf->loadHtml($this->renderFinalReport($project,true,$part)->render(),'UTF-8');$pdf->setPaper('A4',$orientation);$pdf->render();return $pdf->output();
+  };
+  $parts=[
+   [$renderPart('before-chapter-four','portrait'),'P',false],
+   [$renderPart('chapter-four','landscape'),'L',true],
+   [$renderPart('chapter-five','portrait'),'P',true],
+   [$renderPart('approval','portrait'),'P',true],
+   [$renderPart('after-approval','portrait'),'P',true],
+   [$renderPart('strength','landscape'),'L',true],
+   [$renderPart('after-strength','portrait'),'P',true],
+  ];
+  $merged=new Fpdi();$merged->SetTitle('Laporan Desain Campuran Beton '.$project->number);$merged->SetCreator('Aplikasi Laboratorium Bahan dan Struktur');
+  foreach($parts as [$contents,$orientation,$skipLeadingBreakPage]){
+   $pageCount=$merged->setSourceFile(StreamReader::createByString($contents));
+   for($page=$skipLeadingBreakPage?2:1;$page<=$pageCount;$page++){$template=$merged->importPage($page);$size=$merged->getTemplateSize($template);$merged->AddPage($orientation,[$size['width'],$size['height']]);$merged->useTemplate($template);}
+  }
   $filename='Laporan-'.preg_replace('/[^A-Za-z0-9_-]+/','-',$project->number).'.pdf';
-  return response($pdf->output(),200,['Content-Type'=>'application/pdf','Content-Disposition'=>'attachment; filename="'.$filename.'"']);
+  return response($merged->Output('S'),200,['Content-Type'=>'application/pdf','Content-Disposition'=>'attachment; filename="'.$filename.'"']);
  }
- private function renderFinalReport(Project $project,bool $isPublic){
+ private function renderFinalReport(Project $project,bool $isPublic,string $reportPart='full'){
   $materialTests=collect([
    'Pemeriksaan Semen'=>CementTest::where('project_id',$project->id)->latest()->get(),
    'Pemeriksaan Air'=>WaterTest::where('project_id',$project->id)->latest()->get(),
@@ -83,12 +103,14 @@ class WorkflowController extends Controller {
   $reportMixTypes=$project->includedMixDesignTypes();
   $mixDesigns=LaboratoryWorkflow::where('project_id',$project->id)->whereIn('type',$reportMixTypes)->orderBy('updated_at')->orderBy('id')->get();
   $strengthTests=LaboratoryWorkflow::where('project_id',$project->id)->where('type','compressive-strength')->orderBy('work_date')->get();
+  $freshTests=LaboratoryWorkflow::where('project_id',$project->id)->where('type','fresh-concrete')->orderBy('work_date')->get();
+  $slumpTests=SlumpTest::where('project_id',$project->id)->with('trialMix')->orderBy('measured_at')->get();
   $materialSources=MaterialSource::where('project_id',$project->id)->orderBy('type')->orderBy('name')->get();
   $documents=TestDocumentation::where('project_id',$project->id)->orderBy('module')->orderBy('sort_order')->get()->groupBy('module');
   $laboratory=LaboratoryProfile::first();$setting=ReportSetting::firstOrCreate([]);
   $reportUrl=$project->verification_code?route('public.verify',$project->verification_code):null;$qrDataUri=$reportUrl?(new PngWriter())->write(new QrCode(data:$reportUrl,size:220,margin:8))->getDataUri():null;
   $approvalQrCodes=$project->reportApprovals()->with('user')->where('revision',$project->report_revision)->where('status','valid')->orderBy('approved_at')->get()->map(function($approval){$approval->qr_data_uri=(new PngWriter())->write(new QrCode(data:route('public.approval',$approval->verification_token),size:220,margin:8))->getDataUri();return $approval;});
-  return view('workflows.final-report',compact('project','materialTests','materialSources','aggregateRuns','mixDesigns','reportMixTypes','strengthTests','documents','laboratory','setting','qrDataUri','approvalQrCodes','isPublic'));
+  return view('workflows.final-report',compact('project','materialTests','materialSources','aggregateRuns','mixDesigns','reportMixTypes','strengthTests','freshTests','slumpTests','documents','laboratory','setting','qrDataUri','approvalQrCodes','isPublic','reportPart'));
  }
  private function signerCode(Project $project,ReportSetting $setting):string{return strtoupper(substr(hash_hmac('sha256',$project->verification_code.'|'.($setting->signer_name?:'Kepala Laboratorium').'|'.($setting->signer_position?:'Kepala Laboratorium'),config('app.key')),0,20));}
  public function updateReportStatus(Request $r,Project $project){
@@ -106,7 +128,7 @@ class WorkflowController extends Controller {
    $query->whereNotIn('type',['mix-design-2012','mix-design-2012-combined'])->orWhereIn('type',$includedMixTypes);
   })->update(['status'=>$status]);
  }
- private function documentHash(Project $project):string{$records=$this->projectReportRecords($project)->map(fn($r)=>[$r->module,$r->number,$r->date?->format('c'),$r->result])->values()->all();return hash('sha256',json_encode(['project'=>$project->only(['number','name','owner','location','concrete_grade','construction_type','report_include_mix_design_2012','report_include_mix_design_2012_combined']),'revision'=>$project->report_revision,'records'=>$records],JSON_UNESCAPED_UNICODE|JSON_PRESERVE_ZERO_FRACTION));}
+ private function documentHash(Project $project):string{$records=$this->projectReportRecords($project)->map(fn($r)=>[$r->module,$r->number,$r->date?->format('c'),$r->result])->values()->all();return hash('sha256',json_encode(['project'=>$project->only(['number','name','work_package','owner','contractor','consultant','location','location_description','location_address','latitude','longitude','map_image','map_caption','contract_number','contract_date','start_date','end_date','concrete_grade','construction_type','report_include_mix_design_2012','report_include_mix_design_2012_combined']),'revision'=>$project->report_revision,'records'=>$records],JSON_UNESCAPED_UNICODE|JSON_PRESERVE_ZERO_FRACTION));}
  private function projectReportRecords(Project $project){$items=collect();foreach([
    ['Pemeriksaan Semen',CementTest::class],['Pemeriksaan Air',WaterTest::class],['Pemeriksaan Pasir',FineAggregateTest::class],['Pemeriksaan Kerikil',CoarseAggregateTest::class],
   ] as [$module,$model])foreach($model::where('project_id',$project->id)->latest()->get() as $record)$items->push((object)['module'=>$module,'number'=>$record->test_number,'date'=>$record->tested_at,'status'=>$record->status,'result'=>'Data karakteristik material']);

@@ -37,6 +37,7 @@ class Project extends Model
     protected $casts = ['contract_date' => 'date', 'start_date' => 'date', 'end_date' => 'date', 'legalized_at' => 'datetime', 'locked_at' => 'datetime',
         'report_include_mix_design_2012' => 'boolean', 'report_include_mix_design_2012_combined' => 'boolean',
         'request_letter_date' => 'date', 'materials_received_at' => 'date', 'testing_date' => 'date', 'report_date' => 'date',
+        'latitude' => 'decimal:7', 'longitude' => 'decimal:7',
         'use_global_institution' => 'boolean', 'institution_snapshot' => 'array', 'module_progress' => 'array', 'jmd_status' => JmdStatus::class];
 
     public function aggregateTestRuns()

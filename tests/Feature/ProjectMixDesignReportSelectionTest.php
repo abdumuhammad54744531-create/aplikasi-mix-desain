@@ -53,10 +53,8 @@ class ProjectMixDesignReportSelectionTest extends TestCase
             ->assertSee('MD-STANDAR-001')
             ->assertSee('MD-GABUNGAN-001')
             ->assertSeeInOrder([
-                'KEKERASAN/KEAUSAN AGREGAT KASAR',
-                'LAMPIRAN PERHITUNGAN DESAIN CAMPURAN 2012',
-                'LAMPIRAN PERHITUNGAN DESAIN CAMPURAN 2012 (GRADASI GABUNGAN)',
-                'LAMPIRAN DOKUMENTASI',
+                'PERHITUNGAN DESAIN CAMPURAN 2012',
+                'PERHITUNGAN DESAIN CAMPURAN 2012 (GRADASI GABUNGAN)',
             ]);
 
         $project->update([

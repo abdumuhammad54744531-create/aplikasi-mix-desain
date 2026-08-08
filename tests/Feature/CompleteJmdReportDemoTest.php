@@ -33,6 +33,8 @@ class CompleteJmdReportDemoTest extends TestCase
         $this->assertSame(1, ReportApproval::where('project_id', $project->id)->where('status', 'valid')->count());
         $this->assertNotNull($project->document_hash);
         $this->assertNotNull($project->legalized_at);
+        $project->update(['report_include_mix_design_2012' => false, 'report_include_mix_design_2012_combined' => true]);
+        ReportApproval::where('project_id', $project->id)->update(['approval_role' => 'pemeriksa']);
 
         $this->get(route('public.report', $project->verification_code))
             ->assertOk()
@@ -42,9 +44,26 @@ class CompleteJmdReportDemoTest extends TestCase
             ->assertSee('Komposisi Campuran Percobaan untuk Benda Uji Silinder')
             ->assertSee('150,000 mm')
             ->assertSee('300,000 mm')
+            ->assertSee('Kesimpulan Hasil Pemeriksaan Material')
+            ->assertSee('Grafik Kurva Gradasi Campuran')
+            ->assertSee('page-landscape')
+            ->assertSee('Tanggal Pembuatan')
+            ->assertSee('Beban Maks. (kN)')
+            ->assertSee('Faktor Umur')
+            ->assertSee('Mutu K (kg/cm²)')
+            ->assertSee('chapter-four-page')
+            ->assertSee('chapter-four-summary')
+            ->assertSee('subchapter-title')
+            ->assertSee('Unduh PDF')
+            ->assertDontSee('window.print')
+            ->assertSee('Baubau, 08 Agustus 2026')
+            ->assertSee('alt="QR persetujuan"', false)
+            ->assertDontSee('<tr><td>Status</td>', false)
+            ->assertDontSee('WITA')
             ->assertDontSee('Data pengujian belum tersedia pada proyek ini');
-        $this->get(route('public.download', $project->verification_code))
-            ->assertOk()->assertHeader('content-type', 'application/pdf');
+        $download = $this->get(route('public.download', $project->verification_code));
+        $download->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->assertStringContainsString('TimesNewRomanPS', $download->getContent());
     }
 
     public function test_saved_combined_gradation_snapshot_is_preserved_when_project_is_reopened(): void

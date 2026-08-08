@@ -28,7 +28,7 @@ class SimplifiedDataEntryTest extends TestCase
         $project->refresh();
         $this->assertSame('Proyek Ringkas Diperbarui',$project->name);
         $this->assertSame('Kontraktor Lama',$project->contractor);
-        $this->get(route('projects.index'))->assertOk()->assertSee('Nama proyek')->assertDontSee('Paket pekerjaan');
+        $this->get(route('projects.index'))->assertOk()->assertSee('Nama proyek')->assertSee('Paket pekerjaan');
     }
 
     public function test_material_filter_separates_projects_and_simplified_form_fields(): void
