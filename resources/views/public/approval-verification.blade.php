@@ -10,9 +10,17 @@
 <body>
 <main class="container">
  <div class="card p-4 p-md-5">
-  <span class="badge status {{$effectiveStatus==='valid'&&$hashValid?'text-bg-success':'text-bg-danger'}} align-self-start">{{strtoupper($effectiveStatus)}}</span>
+  @php
+   $statusClass = $effectiveStatus === 'valid' ? 'success' : ($effectiveStatus === 'revisi' ? 'warning' : 'danger');
+   $statusMessage = match ($effectiveStatus) {
+    'valid' => 'Dokumen telah disetujui secara elektronik oleh pejabat yang tercantum. Untuk dokumen fisik, dokumen harus berstempel resmi dari Laboratorium.',
+    'revisi' => 'Persetujuan ini berasal dari dokumen yang telah direvisi. Gunakan dokumen terbaru.',
+    default => 'Dokumen ditolak atau isinya tidak cocok dengan dokumen yang disahkan.',
+   };
+  @endphp
+  <span class="badge status text-bg-{{$statusClass}} align-self-start">{{strtoupper($effectiveStatus)}}</span>
   <h2 class="fw-bold mt-3">Verifikasi Tanda Tangan Elektronik</h2>
-  <div class="alert {{$effectiveStatus==='valid'&&$hashValid?'alert-success':'alert-danger'}}">Dokumen ini {{$effectiveStatus==='valid'&&$hashValid?'telah disetujui secara elektronik oleh pejabat yang tercantum.':'tidak lagi memiliki persetujuan elektronik yang berlaku.'}}</div>
+  <div class="alert alert-{{$statusClass}}">{{$statusMessage}}</div>
   <div class="row">
    <div class="col-md-5">
     <h5>Identitas pejabat</h5>
@@ -34,16 +42,14 @@
      <tr><th>Jenis desain campuran</th><td>SNI 7656:2012</td></tr>
      <tr><th>Waktu persetujuan</th><td>{{$approval->approved_at?->format('d/m/Y H:i:s')}} WITA</td></tr>
      <tr><th>Kode unik</th><td><code>{{$approval->approval_id}}</code></td></tr>
-     <tr><th>Revisi dokumen</th><td>{{$approval->revision}}</td></tr>
-     <tr><th>Status kode batang</th><td><b>{{strtoupper($effectiveStatus)}}</b></td></tr>
-     <tr><th>Sidik digital cocok</th><td><b>{{$hashValid?'YA':'TIDAK — DOKUMEN BERUBAH'}}</b></td></tr>
+     <tr><th>Status</th><td><b>{{strtoupper($effectiveStatus)}}</b></td></tr>
     </table>
    </div>
   </div>
   <h5>Riwayat persetujuan</h5>
   <table class="table table-bordered">
-   <thead><tr><th>Revisi</th><th>Peran</th><th>Pejabat</th><th>Waktu</th><th>Status</th></tr></thead>
-   <tbody>@foreach($project->reportApprovals()->with('user')->orderBy('revision')->orderBy('approved_at')->get() as $history)<tr><td>{{$history->revision}}</td><td>{{ucfirst($history->approval_role)}}</td><td>{{$history->user->name}}</td><td>{{$history->approved_at?->format('d/m/Y H:i')}}</td><td><b>{{strtoupper($history->status)}}</b></td></tr>@endforeach</tbody>
+   <thead><tr><th>Peran</th><th>Pejabat</th><th>Waktu</th><th>Status</th></tr></thead>
+   <tbody>@foreach($project->reportApprovals()->with('user')->orderBy('revision')->orderBy('approved_at')->get() as $history)<tr><td>{{ucfirst($history->approval_role)}}</td><td>{{$history->user->name}}</td><td>{{$history->approved_at?->format('d/m/Y H:i')}}</td><td><b>{{strtoupper($history->status === 'valid' ? 'valid' : ($history->status === 'direvisi' ? 'revisi' : 'dokumen palsu'))}}</b></td></tr>@endforeach</tbody>
   </table>
   <a class="btn btn-success" href="{{route('public.verify',$project->verification_code)}}">Verifikasi keseluruhan laporan</a>
  </div>

@@ -65,7 +65,7 @@ $header=function()use($setting,$headerLines){
  if($setting->header_lines_enabled)$html.='<div class="header-line-1"></div><div class="header-line-2"></div>';
  return $html.'</div>';
 };
-$footer=fn()=>'<div class="footer">Laporan Desain Campuran Beton • '.e($project->number).' • Revisi '.(int)$project->report_revision.'</div>';
+$footer=fn()=>'<div class="footer">Laporan Desain Campuran Beton • '.e($project->number).'</div>';
 $labels=[
 'test_number'=>'Nomor pengujian','sample_number'=>'Nomor sampel','tested_at'=>'Tanggal pengujian','received_at'=>'Tanggal diterima','technician'=>'Petugas pengujian','notes'=>'Catatan','brand'=>'Merek','producer'=>'Produsen','quarry'=>'Lokasi sumber','supplier'=>'Pemasok',
 'moisture'=>'Kadar air','silt'=>'Kadar lumpur/lolos saringan No. 200','bulk_dry'=>'Berat jenis curah kering','bulk_ssd'=>'Berat jenis curah SSD','apparent'=>'Berat jenis semu','absorption'=>'Penyerapan','bulk_density'=>'Berat isi','voids'=>'Rongga','mass_total'=>'Total massa','mass_difference'=>'Selisih massa','fineness_modulus'=>'Modulus kehalusan','abrasion'=>'Keausan',
@@ -146,7 +146,7 @@ $missing='<div class="notice">Data pengujian belum tersedia pada proyek ini. Bag
 <h1>LAPORAN HASIL<br>DESAIN CAMPURAN BETON</h1><h2>METODE SNI 7656:2012</h2>
 <div class="project-box"><b class="cover-project-name">{{$project->name}}</b><br><br>{{$project->work_package?:'-'}}<br>{{$project->location_address?:($project->location?:'-')}}</div>
 <h3>{{$project->owner?:($project->contractor?:'Pemohon belum diisi')}}</h3>
-<p>Nomor laporan: {{$project->number}} • Revisi {{$project->report_revision}}</p>
+<p>Nomor laporan: {{$project->number}}</p>
 @if($qrDataUri)<div style="margin:18px auto 0"><img src="{{$qrDataUri}}" style="width:28mm;height:28mm"><div><b>Pindai untuk memeriksa keaslian laporan</b></div></div>@endif
 {!!$footer()!!}
 </section>

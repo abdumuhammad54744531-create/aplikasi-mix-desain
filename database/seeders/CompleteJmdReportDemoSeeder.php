@@ -207,15 +207,33 @@ class CompleteJmdReportDemoSeeder extends Seeder
             $result = collect($record->results['averages'] ?? [])->map(fn ($value, $key) => ucwords(str_replace('_', ' ', $key)).': '.number_format($value, 3, ',', '.'))->join('; ');
             $records->push([ucwords(str_replace('-', ' ', $record->test_type)).' '.($record->aggregate_type === 'fine' ? 'Pasir' : 'Kerikil'), $record->test_number, $record->tested_at?->format('c'), $result]);
         }
+        $includedMixTypes = $project->includedMixDesignTypes();
         foreach (LaboratoryWorkflow::where('project_id', $project->id)->latest()->get() as $record) {
+            if (in_array($record->type, ['mix-design-2012', 'mix-design-2012-combined'], true)
+                && ! in_array($record->type, $includedMixTypes, true)) {
+                continue;
+            }
             $module = match ($record->type) {
-                'mix-design-2012' => 'Desain Campuran SNI 7656:2012', 'compressive-strength' => 'Kuat Tekan', default => ucwords(str_replace('-', ' ', $record->type))
+                'mix-design-2012' => 'Desain Campuran SNI 7656:2012',
+                'mix-design-2012-combined' => 'Desain Campuran SNI 7656:2012 (Gradasi Gabungan)',
+                'compressive-strength' => 'Kuat Tekan',
+                default => ucwords(str_replace('-', ' ', $record->type)),
             };
             $result = collect($record->result_data)->reject(fn ($value) => is_array($value))->take(3)->map(fn ($value, $key) => $key.': '.(is_numeric($value) ? number_format($value, 3, ',', '.') : $value))->join('; ');
             $records->push([$module, $record->number, $record->work_date?->format('c'), $result]);
         }
         $records = $records->sortByDesc(fn ($record) => $record[2])->values()->all();
 
-        return hash('sha256', json_encode(['project' => $project->only(['number', 'name', 'owner', 'location', 'concrete_grade', 'construction_type', 'report_include_mix_design_2012', 'report_include_mix_design_2012_combined']), 'revision' => $project->report_revision, 'records' => $records], JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
+        return hash('sha256', json_encode([
+            'project' => $project->only([
+                'number', 'name', 'work_package', 'owner', 'contractor', 'consultant', 'location',
+                'location_description', 'location_address', 'latitude', 'longitude', 'map_image',
+                'map_caption', 'contract_number', 'contract_date', 'start_date', 'end_date',
+                'concrete_grade', 'construction_type', 'report_include_mix_design_2012',
+                'report_include_mix_design_2012_combined',
+            ]),
+            'revision' => $project->report_revision,
+            'records' => $records,
+        ], JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
     }
 }

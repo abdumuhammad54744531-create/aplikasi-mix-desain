@@ -18,7 +18,7 @@ class CompleteJmdReportDemoTest extends TestCase
 
     public function test_demo_seeder_builds_complete_approved_report_with_two_observations(): void
     {
-        User::factory()->create(['username' => 'demo-admin', 'role' => 'administrator', 'access_level' => 'edit']);
+        $admin = User::factory()->create(['name' => 'Pemeriksa Revisi Terbaru', 'username' => 'demo-admin', 'role' => 'administrator', 'access_level' => 'edit']);
         $this->seed(CompleteJmdReportDemoSeeder::class);
         $this->seed(CompleteJmdReportDemoSeeder::class);
 
@@ -33,6 +33,21 @@ class CompleteJmdReportDemoTest extends TestCase
         $this->assertSame(1, ReportApproval::where('project_id', $project->id)->where('status', 'valid')->count());
         $this->assertNotNull($project->document_hash);
         $this->assertNotNull($project->legalized_at);
+        $this->get(route('public.verify', $project->verification_code))
+            ->assertOk()
+            ->assertSee('VALID')
+            ->assertSee('berlaku sebagai dokumen elektronik')
+            ->assertSee('harus berstempel resmi dari Laboratorium')
+            ->assertDontSee('Nomor revisi')
+            ->assertDontSee('Status dokumen')
+            ->assertDontSee('Status validasi')
+            ->assertDontSee('Revisi 1');
+        $approval = ReportApproval::where('project_id', $project->id)->sole();
+        $this->get(route('public.approval', $approval->verification_token))
+            ->assertOk()
+            ->assertSee('VALID')
+            ->assertDontSee('Revisi dokumen')
+            ->assertDontSee('<th>Revisi</th>', false);
         $project->update(['report_include_mix_design_2012' => false, 'report_include_mix_design_2012_combined' => true]);
         ReportApproval::where('project_id', $project->id)->update(['approval_role' => 'pemeriksa']);
 
@@ -56,14 +71,73 @@ class CompleteJmdReportDemoTest extends TestCase
             ->assertSee('subchapter-title')
             ->assertSee('Unduh PDF')
             ->assertDontSee('window.print')
-            ->assertSee('Baubau, 08 Agustus 2026')
+            ->assertSee('Baubau, ')
+            ->assertSee('Agustus 2026')
             ->assertSee('alt="QR persetujuan"', false)
             ->assertDontSee('<tr><td>Status</td>', false)
+            ->assertDontSee('Revisi 1')
             ->assertDontSee('WITA')
             ->assertDontSee('Data pengujian belum tersedia pada proyek ini');
         $download = $this->get(route('public.download', $project->verification_code));
         $download->assertOk()->assertHeader('content-type', 'application/pdf');
         $this->assertStringContainsString('TimesNewRomanPS', $download->getContent());
+
+        $this->get(route('public.verify', $project->verification_code))
+            ->assertOk()
+            ->assertSee('DOKUMEN PALSU')
+            ->assertDontSee('DOKUMEN BERUBAH');
+        $this->get(route('public.approval', $approval->verification_token))
+            ->assertOk()
+            ->assertSee('DOKUMEN PALSU');
+        $project->update(['document_status' => 'direvisi']);
+        $this->get(route('public.verify', $project->verification_code))
+            ->assertOk()
+            ->assertSee('REVISI')
+            ->assertDontSee('Nomor revisi');
+        $this->get(route('public.approval', $approval->verification_token))
+            ->assertOk()
+            ->assertSee('REVISI');
+        $project->update(['document_status' => 'ditolak']);
+        $this->get(route('public.verify', $project->verification_code))
+            ->assertOk()
+            ->assertSee('DOKUMEN PALSU')
+            ->assertDontSee('DITOLAK');
+        $this->actingAs($admin)->get(route('workflow.report.project', $project))
+            ->assertOk()
+            ->assertSee('Tinjau Ulang / Masuk Revisi');
+        $this->actingAs($admin)->patch(route('workflow.report.status', $project), ['status' => 'revisi'])
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success', 'Laporan masuk revisi dan dapat diperbaiki untuk diajukan kembali.');
+        $project->refresh();
+        $this->assertSame('direvisi', $project->document_status);
+        $this->assertSame('aktif', $project->status);
+        $this->assertNull($project->locked_at);
+        $this->assertNull($project->legalized_at);
+        $this->get(route('public.verify', $project->verification_code))
+            ->assertOk()
+            ->assertSee('REVISI');
+
+        $this->actingAs($admin)->patch(route('workflow.report.status', $project), [
+            'status' => 'disetujui',
+            'approval_role' => 'pemeriksa',
+        ])->assertSessionHasNoErrors();
+        $project->refresh();
+        $this->assertSame('valid', $project->document_status);
+        $validPage = $this->get(route('public.verify', $project->verification_code))->assertOk();
+        $validPage->assertSee('VALID')->assertSee('Pemeriksa Revisi Terbaru')->assertDontSee('Ir. Pemeriksa Contoh');
+
+        $this->actingAs($admin)->patch(route('workflow.report.status', $project), [
+            'status' => 'disetujui',
+            'approval_role' => 'pemeriksa',
+        ])->assertSessionHasNoErrors();
+        $latestValidPage = $this->get(route('public.verify', $project->verification_code))->assertOk();
+        $this->assertSame(1, substr_count($latestValidPage->getContent(), 'Pemeriksa Revisi Terbaru'));
+
+        $this->actingAs($admin)->patch(route('workflow.report.status', $project), ['status' => 'revisi'])
+            ->assertSessionHasNoErrors();
+        $latestRevisionPage = $this->get(route('public.verify', $project->verification_code))->assertOk();
+        $latestRevisionPage->assertSee('REVISI')->assertDontSee('VALID —');
+        $this->assertSame(1, substr_count($latestRevisionPage->getContent(), 'Pemeriksa Revisi Terbaru'));
     }
 
     public function test_saved_combined_gradation_snapshot_is_preserved_when_project_is_reopened(): void

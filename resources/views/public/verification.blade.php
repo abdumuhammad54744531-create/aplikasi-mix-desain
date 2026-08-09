@@ -1,11 +1,13 @@
 @php
     $statusMessage = match ($verificationStatus) {
-        'valid' => 'Laporan dan persetujuan masih berlaku.',
-        'direvisi' => 'Terdapat versi laporan yang lebih baru.',
-        'ditolak' => 'Laporan tidak mendapat persetujuan.',
-        'dicabut' => 'Persetujuan laporan telah dicabut.',
-        'dibatalkan' => 'Laporan telah dibatalkan.',
-        default => 'Isi dokumen berbeda dari versi yang disetujui.',
+        'valid' => 'Dokumen telah disetujui dan masih berlaku sebagai dokumen elektronik. Untuk dokumen fisik, dokumen harus berstempel resmi dari Laboratorium.',
+        'revisi' => 'Dokumen telah direvisi. Gunakan dokumen terbaru.',
+        default => 'Dokumen ditolak atau isinya tidak cocok dengan dokumen yang disahkan.',
+    };
+    $statusClass = match ($verificationStatus) {
+        'valid' => 'success',
+        'revisi' => 'warning',
+        default => 'danger',
     };
     $mixTypes = $project->laboratoryWorkflows()
         ->whereIn('type', $project->includedMixDesignTypes())
@@ -35,11 +37,11 @@
         <div class="d-flex gap-4 align-items-center mb-4">
             <div class="seal">{{$verificationStatus === 'valid' ? '✓' : '!'}}</div>
             <div>
-                <span class="badge {{$verificationStatus === 'valid' ? 'text-bg-success' : 'text-bg-danger'}}">{{strtoupper($verificationStatus)}}</span>
+                <span class="badge text-bg-{{$statusClass}}">{{strtoupper($verificationStatus)}}</span>
                 <h2 class="fw-bold mt-2 mb-0">Verifikasi Laporan Laboratorium</h2>
             </div>
         </div>
-        <div class="alert {{$verificationStatus === 'valid' ? 'alert-success' : 'alert-danger'}}">
+        <div class="alert alert-{{$statusClass}}">
             <b>{{strtoupper($verificationStatus)}}</b> — {{$statusMessage}}
         </div>
         <table class="table">
@@ -49,9 +51,7 @@
             <tr><th>Lokasi</th><td>{{$project->location}}</td></tr>
             <tr><th>Jenis desain campuran</th><td>{{$mixTypes ?: 'Belum tersedia'}}</td></tr>
             <tr><th>Tanggal diterbitkan</th><td>{{$project->legalized_at?->format('d/m/Y H:i') ?: 'Belum diterbitkan'}}{{$project->legalized_at ? ' WITA' : ''}}</td></tr>
-            <tr><th>Nomor revisi</th><td>{{$project->report_revision}}</td></tr>
-            <tr><th>Status dokumen</th><td><b>{{strtoupper($project->document_status)}}</b></td></tr>
-            <tr><th>Status validasi</th><td><b>{{strtoupper($verificationStatus)}}</b></td></tr>
+            <tr><th>Status</th><td><b>{{strtoupper($verificationStatus)}}</b></td></tr>
             <tr><th>Laboratorium penerbit</th><td>{{\App\Models\LaboratoryProfile::first()?->name ?: 'Laboratorium Bahan dan Struktur'}}</td></tr>
         </table>
 
@@ -65,7 +65,7 @@
                     <td>{{$approval->user->name}}</td>
                     <td>{{$approval->user->position ?: $approval->user->role}}</td>
                     <td>{{$approval->approved_at?->format('d/m/Y H:i')}} WITA</td>
-                    <td><b>{{strtoupper($approval->status)}}</b></td>
+                    <td><b>{{strtoupper($verificationStatus)}}</b></td>
                 </tr>
             @empty
                 <tr><td colspan="5">Belum ada rekaman persetujuan pejabat.</td></tr>
