@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AggregateTestRun;
 use App\Models\LaboratoryWorkflow;
+use App\Models\MaterialSource;
 use App\Models\Project;
 use App\Models\ReportApproval;
 use App\Models\TestDocumentation;
@@ -48,6 +49,22 @@ class CompleteJmdReportDemoTest extends TestCase
             ->assertSee('VALID')
             ->assertDontSee('Revisi dokumen')
             ->assertDontSee('<th>Revisi</th>', false);
+        MaterialSource::where('code', 'DEMO-FINE-001')->sole()->update([
+            'project_id' => null,
+            'type' => 'Pasir',
+            'name' => 'Pasir Umum yang Dipakai Pengujian',
+            'brand' => 'Merek Pasir Terpilih',
+            'producer' => 'Produsen Pasir Terpilih',
+            'quarry' => 'Quarry Pasir Terpilih',
+            'supplier' => 'Pemasok Pasir Terpilih',
+        ]);
+        MaterialSource::create([
+            'project_id' => $project->id,
+            'code' => 'FINE-TIDAK-DIPAKAI',
+            'type' => 'Pasir',
+            'name' => 'Pasir yang Tidak Dipakai Pengujian',
+            'brand' => 'Merek yang Tidak Boleh Masuk Laporan',
+        ]);
         $project->update(['report_include_mix_design_2012' => false, 'report_include_mix_design_2012_combined' => true]);
         ReportApproval::where('project_id', $project->id)->update(['approval_role' => 'pemeriksa']);
 
@@ -60,6 +77,10 @@ class CompleteJmdReportDemoTest extends TestCase
             ->assertSee('150,000 mm')
             ->assertSee('300,000 mm')
             ->assertSee('Kesimpulan Hasil Pemeriksaan Material')
+            ->assertSee('Merek Pasir Terpilih')
+            ->assertSee('Produsen Pasir Terpilih')
+            ->assertSee('Pemasok Pasir Terpilih')
+            ->assertDontSee('Merek yang Tidak Boleh Masuk Laporan')
             ->assertSee('Grafik Kurva Gradasi Campuran')
             ->assertSee('page-landscape')
             ->assertSee('Tanggal Pembuatan')

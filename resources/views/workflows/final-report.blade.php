@@ -100,10 +100,22 @@ $slumpActual=$latestSlump?->actual_slump_mm??data_get($latestFresh?->input_data,
 $slumpMin=$latestSlump?->minimum_slump_mm??($mixInput['slump_min']??null);$slumpMax=$latestSlump?->maximum_slump_mm??($mixInput['slump_max']??null);
 $dms=function($value,$latitude=true){if($value===null)return '-';$absolute=abs((float)$value);$degrees=floor($absolute);$minutesFull=($absolute-$degrees)*60;$minutes=floor($minutesFull);$seconds=($minutesFull-$minutes)*60;$direction=$latitude?((float)$value<0?'LS':'LU'):((float)$value<0?'BB':'BT');return sprintf('%d° %d\' %.2f" %s',$degrees,$minutes,$seconds,$direction);};
 $latestRun=function($aggregate,$type)use($aggregateRuns){return $aggregateRuns->where('aggregate_type',$aggregate)->where('test_type',$type)->last();};
-$fineSource=$materialSources->firstWhere('type','fine')??$materialSources->firstWhere('type','pasir');
-$coarseSource=$materialSources->firstWhere('type','coarse')??$materialSources->firstWhere('type','kerikil');
-$cementSource=$materialSources->firstWhere('type','cement')??$materialSources->firstWhere('type','semen');
-$waterSource=$materialSources->firstWhere('type','water')??$materialSources->firstWhere('type','air');
+$sourceByType=function(array $types)use($materialSources){$types=array_map(fn($type)=>mb_strtolower($type),$types);return $materialSources->first(fn($source)=>in_array(mb_strtolower(trim((string)$source->type)),$types,true));};
+$fineSource=$sourceByType(['fine','pasir','agregat halus']);
+$coarseSource=$sourceByType(['coarse','kerikil','batu pecah','agregat kasar']);
+$cementSource=$sourceByType(['cement','semen']);
+$waterSource=$sourceByType(['water','air']);
+$latestCementSourceTest=($materialTests['Pemeriksaan Semen']??collect())->first();
+$latestWaterSourceTest=($materialTests['Pemeriksaan Air']??collect())->first();
+$latestFineSourceTest=($materialTests['Pemeriksaan Pasir']??collect())->first();
+$latestCoarseSourceTest=($materialTests['Pemeriksaan Kerikil']??collect())->first();
+$sourceValue=function(...$values){foreach($values as $value)if($value!==null&&trim((string)$value)!=='')return $value;return 'Belum diisi';};
+$materialRows=[
+ ['Semen',$sourceValue($cementSource?->brand,$cementSource?->name,$latestCementSourceTest?->brand,$latestCementSourceTest?->cement_type),$sourceValue($cementSource?->producer,$cementSource?->quarry),$sourceValue($cementSource?->supplier)],
+ ['Air',$sourceValue($waterSource?->brand,$waterSource?->name,$latestWaterSourceTest?->water_source),$sourceValue($waterSource?->producer,$waterSource?->quarry,$latestWaterSourceTest?->sampling_location),$sourceValue($waterSource?->supplier)],
+ ['Agregat halus/pasir',$sourceValue($fineSource?->brand,$fineSource?->name),$sourceValue($fineSource?->producer,$fineSource?->quarry,$latestFineSourceTest?->quarry),$sourceValue($fineSource?->supplier,$latestFineSourceTest?->supplier)],
+ ['Agregat kasar/kerikil',$sourceValue($coarseSource?->brand,$coarseSource?->name,$latestCoarseSourceTest?->aggregate_type),$sourceValue($coarseSource?->producer,$coarseSource?->quarry,$latestCoarseSourceTest?->quarry),$sourceValue($coarseSource?->supplier)],
+];
 $runLabels=['moisture'=>'Pemeriksaan Kadar Air','silt'=>'Pemeriksaan Kadar Lumpur/Lolos No. 200','specific-gravity'=>'Pemeriksaan Berat Jenis dan Penyerapan','bulk-density'=>'Pemeriksaan Berat Isi','sieve'=>'Analisis Saringan','los-angeles'=>'Keausan Agregat dengan Mesin Los Angeles'];
 $sieveInfo=[
  'fine'=>[['3/8 in',9.5,'r095'],['No.4',4.75,'r475'],['No.8',2.36,'r236'],['No.16',1.18,'r118'],['No.30',.60,'r060'],['No.50',.30,'r030'],['No.100',.15,'r015'],['Wadah dasar',0,'pan']],
@@ -210,7 +222,7 @@ $tocTitle=$tocMixType==='mix-design-2012-combined'?'Desain Campuran 2012 (Gradas
 @if($project->latitude!==null&&$project->longitude!==null)<table class="info"><tr><td>Latitude</td><td>{{$project->coordinate_format==='dms'?$dms($project->latitude,true):number_format((float)$project->latitude,7,'.','')}}</td></tr><tr><td>Longitude</td><td>{{$project->coordinate_format==='dms'?$dms($project->longitude,false):number_format((float)$project->longitude,7,'.','')}}</td></tr></table>@endif
 @if($project->map_image)<h4 class="subchapter" style="text-align:center">PETA LOKASI PEKERJAAN</h4><img class="map-image" src="{{asset('storage/'.$project->map_image)}}" alt="Peta lokasi pekerjaan"><div class="map-caption">{{$project->map_caption?:'Gambar 1. Peta Lokasi Pekerjaan'}}</div>@elseif($project->latitude!==null&&$project->longitude!==null)<div class="notice">Titik lokasi telah tersimpan. Upload gambar peta/site map pada Data Proyek agar peta tercetak pada PDF.</div>@endif
 <h3 class="chapter">1.5 Data-data Bahan</h3><table class="data"><tr><th>Bahan</th><th>Nama/Merek</th><th>Produsen/Sumber</th><th>Pemasok</th></tr>
-@foreach([['Semen',$cementSource],['Air',$waterSource],['Agregat halus/pasir',$fineSource],['Agregat kasar/kerikil',$coarseSource]] as [$name,$source])<tr><td>{{$name}}</td><td>{{$source?->brand?:($source?->name?:'Belum diisi')}}</td><td>{{$source?->producer?:($source?->quarry?:'Belum diisi')}}</td><td>{{$source?->supplier?:'—'}}</td></tr>@endforeach
+@foreach($materialRows as [$name,$materialName,$producer,$supplier])<tr><td>{{$name}}</td><td>{{$materialName}}</td><td>{{$producer}}</td><td>{{$supplier}}</td></tr>@endforeach
 </table>
 <h3 class="chapter">1.6 Pemeriksaan dan Pengujian di Laboratorium</h3><p class="justify">Pemeriksaan mencakup kadar air, kadar lumpur, berat jenis dan penyerapan, berat isi, analisis saringan, modulus kehalusan, serta keausan agregat kasar. Hasil lengkap disajikan pada lampiran dan digunakan sebagai dasar perhitungan desain campuran.</p>{!!$footer()!!}</section>
 

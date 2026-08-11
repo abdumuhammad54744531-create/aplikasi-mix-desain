@@ -41,8 +41,17 @@ class SimplifiedDataEntryTest extends TestCase
 
         $this->actingAs($user)->get(route('materials.index',['project'=>$first->id]))
             ->assertOk()->assertSee('Pasir Proyek Satu')->assertDontSee('Kerikil Proyek Dua')
-            ->assertSee('Filter proyek')->assertSee('Cari kode / nama / catatan')->assertDontSee('Merek');
+            ->assertSee('Filter proyek')->assertSee('Cari kode / nama / catatan')
+            ->assertSee('Merek')->assertSee('Produsen')->assertSee('Lokasi sumber / quarry')->assertSee('Pemasok');
         $this->get(route('materials.index',['type'=>'Batu pecah']))
             ->assertOk()->assertSee('Kerikil Proyek Dua')->assertDontSee('Pasir Proyek Satu');
+
+        $this->actingAs($user)->post(route('materials.store'),[
+            'project_id'=>$first->id,'code'=>'SMN-DETAIL-01','type'=>'Semen','name'=>'Semen Detail',
+            'brand'=>'Merek Detail','producer'=>'Produsen Detail','quarry'=>'Sumber Detail','supplier'=>'Pemasok Detail','notes'=>'Lengkap',
+        ])->assertSessionDoesntHaveErrors();
+        $this->assertDatabaseHas('material_sources',[
+            'code'=>'SMN-DETAIL-01','brand'=>'Merek Detail','producer'=>'Produsen Detail','quarry'=>'Sumber Detail','supplier'=>'Pemasok Detail',
+        ]);
     }
 }

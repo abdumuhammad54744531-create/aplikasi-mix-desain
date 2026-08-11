@@ -105,7 +105,8 @@ class WorkflowController extends Controller {
   $strengthTests=LaboratoryWorkflow::where('project_id',$project->id)->where('type','compressive-strength')->orderBy('work_date')->get();
   $freshTests=LaboratoryWorkflow::where('project_id',$project->id)->where('type','fresh-concrete')->orderBy('work_date')->get();
   $slumpTests=SlumpTest::where('project_id',$project->id)->with('trialMix')->orderBy('measured_at')->get();
-  $materialSources=MaterialSource::where('project_id',$project->id)->orderBy('type')->orderBy('name')->get();
+  $referencedMaterialSourceIds=$materialTests->flatMap(fn($tests)=>$tests->pluck('material_source_id'))->merge($aggregateRuns->pluck('material_source_id'))->filter()->unique()->values();
+  $materialSources=MaterialSource::where(function($query)use($project,$referencedMaterialSourceIds){$query->where('project_id',$project->id);if($referencedMaterialSourceIds->isNotEmpty())$query->orWhereIn('id',$referencedMaterialSourceIds);})->orderByDesc('updated_at')->orderByDesc('id')->get()->sortByDesc(fn($source)=>(int)$referencedMaterialSourceIds->contains($source->id))->values();
   $documents=TestDocumentation::where('project_id',$project->id)->orderBy('module')->orderBy('sort_order')->get()->groupBy('module');
   $laboratory=LaboratoryProfile::first();$setting=ReportSetting::firstOrCreate([]);
   $reportUrl=$project->verification_code?route('public.verify',$project->verification_code):null;$qrDataUri=$reportUrl?(new PngWriter())->write(new QrCode(data:$reportUrl,size:220,margin:8))->getDataUri():null;
