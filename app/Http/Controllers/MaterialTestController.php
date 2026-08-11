@@ -72,7 +72,7 @@ class MaterialTestController extends Controller
             compact('name','label','unit','required','rule');
         return match($type) {
             'cement' => [
-                $common('cement_type','Jenis semen','',true,'string|max:100'), $common('brand','Merek','','false'==='true','string|max:100'),
+                $common('cement_type','Jenis semen','',false,'string|max:100'), $common('brand','Merek','','false'==='true','string|max:100'),
                 $common('batch_number','Nomor batch','','false'==='true','string|max:100'), $common('color','Warna','','false'==='true','string|max:100'),
                 $common('package_condition','Kondisi kemasan','','false'==='true','string|max:100'),
                 $common('specific_gravity','Berat jenis','',true), $common('fineness','Kehalusan','%',false),
@@ -81,9 +81,9 @@ class MaterialTestController extends Controller
                 $common('temperature','Suhu semen','°C',false,'numeric'),
             ],
             'water' => [
-                $common('water_source','Sumber air','',true,'string|max:255'), $common('sampling_location','Lokasi pengambilan','',false,'string|max:255'),
+                $common('water_source','Sumber air','',true,'string|max:255'), $common('sampling_location','Lokasi pengambilan','',true,'string|max:255'),
                 $common('color','Warna','',false,'string|max:100'), $common('odor','Bau','',false,'string|max:100'),
-                $common('ph','pH','',true,'numeric|between:0,14'), $common('silt_content','Kandungan lumpur','mg/L',false),
+                $common('ph','pH','',false,'numeric|between:0,14'), $common('silt_content','Kandungan lumpur','mg/L',false),
                 $common('organic_content','Kandungan organik','mg/L',false), $common('chloride','Klorida','mg/L',false),
                 $common('sulfate','Sulfat','mg/L',false), $common('dissolved_solids','Zat padat terlarut','mg/L',false),
                 $common('comparative_mortar_strength','Kuat tekan mortar pembanding','%',false),

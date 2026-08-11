@@ -113,6 +113,49 @@ class MaterialExaminationPersistenceTest extends TestCase
         }
     }
 
+    public function test_only_specific_gravity_is_required_for_cement_characteristics(): void
+    {
+        [$user, $project] = $this->identity();
+
+        $this->actingAs($user)->post(route('material-tests.store', 'cement'), [
+            'project_id' => $project->id,
+            'sample_number' => 'SEMEN-MINIMAL-01',
+            'tested_at' => '2026-08-11',
+            'technician' => 'Petugas Semen',
+            'specific_gravity' => 3.15,
+        ])->assertRedirect(route('material-tests.index'));
+
+        $cement = CementTest::sole();
+        $this->assertSame(3.15, (float) $cement->specific_gravity);
+        $this->assertNull($cement->cement_type);
+        $this->assertNull($cement->fineness);
+    }
+
+    public function test_only_source_and_location_are_required_for_water_characteristics(): void
+    {
+        [$user, $project] = $this->identity();
+        $payload = [
+            'project_id' => $project->id,
+            'sample_number' => 'AIR-MINIMAL-01',
+            'tested_at' => '2026-08-11',
+            'technician' => 'Petugas Air',
+            'water_source' => 'Sumur bor',
+            'sampling_location' => 'Bak penampung laboratorium',
+        ];
+
+        $this->actingAs($user)->post(route('material-tests.store', 'water'), $payload)
+            ->assertRedirect(route('material-tests.index'));
+
+        $water = WaterTest::sole();
+        $this->assertSame('Sumur bor', $water->water_source);
+        $this->assertSame('Bak penampung laboratorium', $water->sampling_location);
+        $this->assertNull($water->ph);
+
+        unset($payload['sampling_location']);
+        $this->post(route('material-tests.store', 'water'), $payload)
+            ->assertSessionHasErrors('sampling_location');
+    }
+
     private function identity(): array
     {
         $user = User::factory()->create(['username' => 'material-tester']);

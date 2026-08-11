@@ -32,9 +32,9 @@ class WorkflowController extends Controller {
   $mix=LaboratoryWorkflow::where('project_id',$d['project_id'])->whereIn('type',['mix-design-2012','mix-design-2012-combined'])->latest()->first();
   if(!$mix||!isset($mix->input_data['fc']))return back()->withInput()->withErrors(['data.target_fc'=>'Mutu sasaran belum tersedia karena proyek belum memiliki desain campuran.']);
   $target=(float)$mix->input_data['fc'];$details=[];$estimated=[];
-  foreach($d['data']['rows'] as $i=>$row){$age=\Carbon\Carbon::parse($row['cast_date'])->diffInDays(\Carbon\Carbon::parse($row['test_date']));$factor=$this->ageFactor($age);$area=pi()*(float)$row['diameter']**2/4;$actual=(float)$row['load_kn']*1000/$area;$estimate=$actual/$factor;$estimated[]=$estimate;$details[]=[...$row,'number'=>$i+1,'age_days'=>$age,'area_mm2'=>$area,'actual_mpa'=>$actual,'age_factor'=>$factor,'estimated_28_mpa'=>$estimate,'estimated_k_kgcm2'=>$estimate*10.19716213];}
+  foreach($d['data']['rows'] as $i=>$row){$age=\Carbon\Carbon::parse($row['cast_date'])->diffInDays(\Carbon\Carbon::parse($row['test_date']));$factor=$this->ageFactor($age);$area=pi()*(float)$row['diameter']**2/4;$actual=(float)$row['load_kn']*1000/$area;$estimate=$actual/$factor;$estimated[]=$estimate;$details[]=[...$row,'number'=>$i+1,'age_days'=>$age,'area_mm2'=>$area,'actual_mpa'=>$actual,'age_factor'=>$factor,'estimated_28_mpa'=>$estimate,'estimated_k_kgcm2'=>$estimate*10/0.83];}
   $count=count($estimated);$mean=array_sum($estimated)/$count;$sd=0;if($count>1){foreach($estimated as $x)$sd+=($x-$mean)**2;$sd=sqrt($sd/($count-1));}$characteristic=$mean-1.64*$sd;
-  $result=['Jumlah benda uji'=>$count,'Sasaran f\'c (MPa)'=>$target,'Rata-rata perkiraan 28 hari (MPa)'=>$mean,'Standar deviasi sampel (MPa)'=>$sd,'Kuat tekan karakteristik (MPa)'=>$characteristic,'Mutu karakteristik (kg/cm²)'=>$characteristic*10.19716213,'Status'=>$characteristic>=$target?'Memenuhi':'Tidak memenuhi','detail_rows'=>$details];
+  $result=['Jumlah benda uji'=>$count,'Sasaran f\'c (MPa)'=>$target,'Rata-rata perkiraan 28 hari (MPa)'=>$mean,'Standar deviasi sampel (MPa)'=>$sd,'Kuat tekan karakteristik (MPa)'=>$characteristic,'Mutu karakteristik (kg/cm²)'=>$characteristic*10/0.83,'Rumus Mutu K'=>'Perkiraan 28 hari × 10 ÷ 0,83','Status'=>$characteristic>=$target?'Memenuhi':'Tidak memenuhi','detail_rows'=>$details];
   $id=$d['workflow_id']??null;$attributes=['project_id'=>$d['project_id'],'type'=>'compressive-strength','work_date'=>$d['work_date'],'input_data'=>['target_fc'=>$target,'mix_design_number'=>$mix->number,'rows'=>$d['data']['rows']],'result_data'=>$result,'notes'=>$d['notes']??null];
   $record=DB::transaction(function()use($id,$d,$attributes){if($id){$record=LaboratoryWorkflow::whereKey($id)->where('project_id',$d['project_id'])->where('type','compressive-strength')->lockForUpdate()->firstOrFail();$record->update($attributes);return $record;}return LaboratoryWorkflow::create([...$attributes,'number'=>'COM-'.now()->format('ymdHis'),'created_by'=>auth()->id()]);});
   AuditService::record($c['title'],'hitung paket benda uji dan simpan',$record);return back()->with('success','Pengujian kuat tekan seluruh benda uji berhasil dihitung dan disimpan.');
@@ -63,9 +63,10 @@ class WorkflowController extends Controller {
   return view('public.signer-verification',compact('project','setting','expected'));
  }
  public function publicApprovalVerification(string $token){
-  $approval=ReportApproval::with(['project','user'])->where('verification_token',$token)->firstOrFail();$project=$approval->project;$currentHash=$this->documentHash($project);
-  $hashValid=hash_equals($approval->document_hash,$currentHash);$isRevision=$approval->status==='direvisi'||$approval->revision<$project->report_revision||$project->document_status==='direvisi';
-  $effectiveStatus=$isRevision?'revisi':(($approval->status==='valid'&&$project->document_status==='valid'&&$hashValid)?'valid':'dokumen palsu');
+  $scannedApproval=ReportApproval::with(['project','user'])->where('verification_token',$token)->firstOrFail();$project=$scannedApproval->project;
+  $approval=$project->reportApprovals()->with('user')->where('approval_role',$scannedApproval->approval_role)->orderByDesc('revision')->orderByDesc('approved_at')->orderByDesc('id')->first()??$scannedApproval;
+  $currentHash=$this->documentHash($project);$hashValid=(bool)($approval->document_hash&&hash_equals($approval->document_hash,$currentHash));
+  $effectiveStatus=match($project->document_status){'valid'=>($approval->status==='valid'&&$hashValid)?'valid':'ditolak','direvisi'=>'revisi',default=>'ditolak'};
   return view('public.approval-verification',compact('approval','project','hashValid','effectiveStatus'));
  }
  public function publicReport(string $code){$project=Project::withTrashed()->where('verification_code',$code)->whereNotNull('legalized_at')->firstOrFail();return $this->renderFinalReport($project,true);}

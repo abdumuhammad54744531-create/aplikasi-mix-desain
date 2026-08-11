@@ -179,13 +179,13 @@ class CompleteJmdReportDemoSeeder extends Seeder
         $details = [];
         foreach ([505, 512, 498] as $index => $load) {
             $actual = $load * 1000 / (pi() * 150 ** 2 / 4);
-            $details[] = ['number' => $index + 1, 'cast_date' => '2026-07-26', 'test_date' => '2026-08-23', 'diameter' => 150, 'height' => 300, 'weight' => 12.4 + $index * .05, 'load_kn' => $load, 'age_days' => 28, 'area_mm2' => pi() * 150 ** 2 / 4, 'actual_mpa' => $actual, 'age_factor' => 1, 'estimated_28_mpa' => $actual, 'estimated_k_kgcm2' => $actual * 10.19716213];
+            $details[] = ['number' => $index + 1, 'cast_date' => '2026-07-26', 'test_date' => '2026-08-23', 'diameter' => 150, 'height' => 300, 'weight' => 12.4 + $index * .05, 'load_kn' => $load, 'age_days' => 28, 'area_mm2' => pi() * 150 ** 2 / 4, 'actual_mpa' => $actual, 'age_factor' => 1, 'estimated_28_mpa' => $actual, 'estimated_k_kgcm2' => $actual * 10 / 0.83];
         }
         $values = array_column($details, 'estimated_28_mpa');
         $mean = array_sum($values) / 3;
         $sd = sqrt(array_sum(array_map(fn ($x) => ($x - $mean) ** 2, $values)) / 2);
         $characteristic = $mean - 1.64 * $sd;
-        $strength = ['Jumlah benda uji' => 3, 'Sasaran f\'c (MPa)' => 25, 'Rata-rata perkiraan 28 hari (MPa)' => $mean, 'Standar deviasi sampel (MPa)' => $sd, 'Kuat tekan karakteristik (MPa)' => $characteristic, 'Mutu karakteristik (kg/cm²)' => $characteristic * 10.19716213, 'Status' => $characteristic >= 25 ? 'Memenuhi' : 'Tidak memenuhi', 'detail_rows' => $details];
+        $strength = ['Jumlah benda uji' => 3, 'Sasaran f\'c (MPa)' => 25, 'Rata-rata perkiraan 28 hari (MPa)' => $mean, 'Standar deviasi sampel (MPa)' => $sd, 'Kuat tekan karakteristik (MPa)' => $characteristic, 'Mutu karakteristik (kg/cm²)' => $characteristic * 10 / 0.83, 'Rumus Mutu K' => 'Perkiraan 28 hari × 10 ÷ 0,83', 'Status' => $characteristic >= 25 ? 'Memenuhi' : 'Tidak memenuhi', 'detail_rows' => $details];
         $this->workflow($project, $user, 'compressive-strength', 'COM-DEMO-001', ['target_fc' => 25, 'mix_design_number' => 'MD12-DEMO-001', 'rows' => $details], $strength, '2026-08-23');
         $this->workflow($project, $user, 'evaluation', 'EVA-DEMO-001', ['target_fc' => 25, 'actual_fc' => $characteristic, 'slump_min' => 75, 'slump_max' => 100, 'actual_slump' => 88], ['Pencapaian kuat tekan (%)' => $characteristic / 25 * 100, 'Status slump' => 'Sesuai', 'Kesimpulan' => $characteristic >= 25 ? 'Campuran diterima' : 'Perlu penyesuaian'], '2026-08-23');
     }

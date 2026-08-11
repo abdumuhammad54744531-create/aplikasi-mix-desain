@@ -30,6 +30,19 @@ class CompleteJmdReportDemoTest extends TestCase
         $this->assertTrue($runs->every(fn ($run) => $run->status === 'disetujui'));
         $this->assertSame(9, LaboratoryWorkflow::where('project_id', $project->id)->count());
         $this->assertTrue(LaboratoryWorkflow::where('project_id', $project->id)->where('type', 'mix-design-2012-combined')->exists());
+        $strength = LaboratoryWorkflow::where('project_id', $project->id)->where('type', 'compressive-strength')->sole();
+        $firstStrengthRow = $strength->result_data['detail_rows'][0];
+        $this->assertEqualsWithDelta(
+            $firstStrengthRow['estimated_28_mpa'] * 10 / 0.83,
+            $firstStrengthRow['estimated_k_kgcm2'],
+            0.000000001
+        );
+        $this->assertEqualsWithDelta(
+            $strength->result_data['Kuat tekan karakteristik (MPa)'] * 10 / 0.83,
+            $strength->result_data['Mutu karakteristik (kg/cm²)'],
+            0.000000001
+        );
+        $this->assertSame('Perkiraan 28 hari × 10 ÷ 0,83', $strength->result_data['Rumus Mutu K']);
         $this->assertSame(1, TestDocumentation::where('project_id', $project->id)->count());
         $this->assertSame(1, ReportApproval::where('project_id', $project->id)->where('status', 'valid')->count());
         $this->assertNotNull($project->document_hash);
@@ -109,7 +122,9 @@ class CompleteJmdReportDemoTest extends TestCase
             ->assertDontSee('DOKUMEN BERUBAH');
         $this->get(route('public.approval', $approval->verification_token))
             ->assertOk()
-            ->assertSee('DOKUMEN PALSU');
+            ->assertSee('DITOLAK')
+            ->assertDontSee('Riwayat persetujuan')
+            ->assertDontSee('Revisi 1');
         $project->update(['document_status' => 'direvisi']);
         $this->get(route('public.verify', $project->verification_code))
             ->assertOk()
@@ -117,12 +132,17 @@ class CompleteJmdReportDemoTest extends TestCase
             ->assertDontSee('Nomor revisi');
         $this->get(route('public.approval', $approval->verification_token))
             ->assertOk()
-            ->assertSee('REVISI');
+            ->assertSee('DI REVISI')
+            ->assertDontSee('Riwayat persetujuan');
         $project->update(['document_status' => 'ditolak']);
         $this->get(route('public.verify', $project->verification_code))
             ->assertOk()
             ->assertSee('DOKUMEN PALSU')
             ->assertDontSee('DITOLAK');
+        $this->get(route('public.approval', $approval->verification_token))
+            ->assertOk()
+            ->assertSee('DITOLAK')
+            ->assertDontSee('Riwayat persetujuan');
         $this->actingAs($admin)->get(route('workflow.report.project', $project))
             ->assertOk()
             ->assertSee('Tinjau Ulang / Masuk Revisi');
@@ -146,6 +166,12 @@ class CompleteJmdReportDemoTest extends TestCase
         $this->assertSame('valid', $project->document_status);
         $validPage = $this->get(route('public.verify', $project->verification_code))->assertOk();
         $validPage->assertSee('VALID')->assertSee('Pemeriksa Revisi Terbaru')->assertDontSee('Ir. Pemeriksa Contoh');
+        $this->get(route('public.approval', $approval->verification_token))
+            ->assertOk()
+            ->assertSee('VALID')
+            ->assertSee('Pemeriksa Revisi Terbaru')
+            ->assertDontSee('Ir. Pemeriksa Contoh')
+            ->assertDontSee('Riwayat persetujuan');
 
         $this->actingAs($admin)->patch(route('workflow.report.status', $project), [
             'status' => 'disetujui',

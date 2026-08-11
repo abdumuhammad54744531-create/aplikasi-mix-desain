@@ -12,44 +12,22 @@
  <div class="card p-4 p-md-5">
   @php
    $statusClass = $effectiveStatus === 'valid' ? 'success' : ($effectiveStatus === 'revisi' ? 'warning' : 'danger');
+   $statusLabel = $effectiveStatus === 'revisi' ? 'DI REVISI' : strtoupper($effectiveStatus);
    $statusMessage = match ($effectiveStatus) {
     'valid' => 'Dokumen telah disetujui secara elektronik oleh pejabat yang tercantum. Untuk dokumen fisik, dokumen harus berstempel resmi dari Laboratorium.',
-    'revisi' => 'Persetujuan ini berasal dari dokumen yang telah direvisi. Gunakan dokumen terbaru.',
-    default => 'Dokumen ditolak atau isinya tidak cocok dengan dokumen yang disahkan.',
+    'revisi' => 'Dokumen sedang direvisi. Gunakan hasil verifikasi terbaru setelah revisi disetujui.',
+    default => 'Dokumen telah ditolak dan tidak berlaku.',
    };
   @endphp
-  <span class="badge status text-bg-{{$statusClass}} align-self-start">{{strtoupper($effectiveStatus)}}</span>
+  <span class="badge status text-bg-{{$statusClass}} align-self-start">{{$statusLabel}}</span>
   <h2 class="fw-bold mt-3">Verifikasi Tanda Tangan Elektronik</h2>
   <div class="alert alert-{{$statusClass}}">{{$statusMessage}}</div>
-  <div class="row">
-   <div class="col-md-5">
-    <h5>Identitas pejabat</h5>
-    <table class="table">
-     <tr><th>Nama</th><td>{{$approval->user->name}}</td></tr>
-     <tr><th>NIP/Identitas</th><td>{{$approval->user->employee_number?:'-'}}</td></tr>
-     <tr><th>Jabatan</th><td>{{$approval->user->position?:$approval->user->role}}</td></tr>
-     <tr><th>Instansi/unit</th><td>{{$approval->user->institution?:'-'}}</td></tr>
-     <tr><th>Kewenangan</th><td>{{$approval->user->approval_authority?:ucfirst($approval->approval_role)}}</td></tr>
-    </table>
-   </div>
-   <div class="col-md-7">
-    <h5>Data persetujuan</h5>
-    <table class="table">
-     <tr><th>Jenis persetujuan</th><td>{{$approval->approval_type}}</td></tr>
-     <tr><th>Nomor laporan</th><td>{{$project->number}}</td></tr>
-     <tr><th>Proyek</th><td>{{$project->name}}</td></tr>
-     <tr><th>Jenis laporan</th><td>Desain Campuran Beton</td></tr>
-     <tr><th>Jenis desain campuran</th><td>SNI 7656:2012</td></tr>
-     <tr><th>Waktu persetujuan</th><td>{{$approval->approved_at?->format('d/m/Y H:i:s')}} WITA</td></tr>
-     <tr><th>Kode unik</th><td><code>{{$approval->approval_id}}</code></td></tr>
-     <tr><th>Status</th><td><b>{{strtoupper($effectiveStatus)}}</b></td></tr>
-    </table>
-   </div>
-  </div>
-  <h5>Riwayat persetujuan</h5>
-  <table class="table table-bordered">
-   <thead><tr><th>Peran</th><th>Pejabat</th><th>Waktu</th><th>Status</th></tr></thead>
-   <tbody>@foreach($project->reportApprovals()->with('user')->orderBy('revision')->orderBy('approved_at')->get() as $history)<tr><td>{{ucfirst($history->approval_role)}}</td><td>{{$history->user->name}}</td><td>{{$history->approved_at?->format('d/m/Y H:i')}}</td><td><b>{{strtoupper($history->status === 'valid' ? 'valid' : ($history->status === 'direvisi' ? 'revisi' : 'dokumen palsu'))}}</b></td></tr>@endforeach</tbody>
+  <table class="table">
+   <tr><th>Nomor laporan</th><td>{{$project->number}}</td></tr>
+   <tr><th>Nama pejabat</th><td>{{$approval->user->name}}</td></tr>
+   <tr><th>Jabatan</th><td>{{$approval->user->position?:$approval->user->role}}</td></tr>
+   <tr><th>Waktu persetujuan terakhir</th><td>{{$approval->approved_at?->format('d/m/Y H:i')}} WITA</td></tr>
+   <tr><th>Status terbaru</th><td><b>{{$statusLabel}}</b></td></tr>
   </table>
   <a class="btn btn-success" href="{{route('public.verify',$project->verification_code)}}">Verifikasi keseluruhan laporan</a>
  </div>
